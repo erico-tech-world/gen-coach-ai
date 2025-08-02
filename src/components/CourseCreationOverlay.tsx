@@ -128,7 +128,7 @@ export function CourseCreationOverlay({ isOpen, onClose }: CourseCreationOverlay
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-ai-gradient flex items-center justify-center shadow-neural-glow">
-                <img src="/public/GenCoachImg.png" alt="GEN-COACH Logo" className="w-8 h-8" />
+                <img src="/GenCoachImg.png" alt="GEN-COACH Logo" className="w-8 h-8" />
               </div>
               <h2 className="text-xl font-semibold text-foreground">Create GEN-COACH Course</h2>
             </div>

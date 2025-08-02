@@ -24,18 +24,26 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
 
     setIsLoading(true);
     try {
+      console.log('Attempting signup with email:', email);
+      console.log('Current origin:', window.location.origin);
+      
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/`,
+          emailRedirectTo: window.location.hostname === 'localhost' 
+            ? `${window.location.origin}/` 
+            : 'https://gen-coach-ai.vercel.app/',
           data: {
             name: name
           }
         }
       });
 
+      console.log('Signup response:', { error });
+
       if (error) {
+        console.error('Signup error:', error);
         toast({
           title: "Sign Up Error",
           description: error.message,
@@ -48,6 +56,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
         });
       }
     } catch (error) {
+      console.error('Unexpected signup error:', error);
       toast({
         title: "Error",
         description: "An unexpected error occurred.",
@@ -99,7 +108,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-ai-gradient rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-neural-glow">
-            <img src="/public/GenCoachImg.png" alt="GEN-COACH Logo" className="w-12 h-12" />
+            <img src="/GenCoachImg.png" alt="GEN-COACH Logo" className="w-12 h-12" />
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">GEN-COACH</h1>
           <p className="text-muted-foreground">Create personalized courses with artificial intelligence</p>

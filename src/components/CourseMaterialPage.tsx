@@ -284,7 +284,7 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
               <div className="aspect-video bg-ai-gradient relative flex items-center justify-center">
                 <div className="text-center text-white">
                   <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center mb-4 mx-auto">
-                    <img src="/public/GenCoachImg.png" alt="GEN-COACH Logo" className="w-14 h-14" />
+                    <img src="/GenCoachImg.png" alt="GEN-COACH Logo" className="w-14 h-14" />
                   </div>
                   <h3 className="text-xl font-semibold mb-2">GEN-COACH Course Content</h3>
                   <div className="flex items-center gap-2 justify-center">

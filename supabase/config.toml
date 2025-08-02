@@ -31,7 +31,12 @@ file_size_limit = "50MiB"
 enabled = true
 port = 54328
 site_url = "http://localhost:3000"
-# additional_redirect_urls = ["https://yourdomain.com"]
+additional_redirect_urls = [
+  "https://gen-coach-ai.vercel.app",
+  "https://gen-coach-ai.vercel.app/*",
+  "https://*.vercel.app",
+  "https://*.vercel.app/*"
+]
 jwt_expiry = 3600
 enable_signup = true
 
