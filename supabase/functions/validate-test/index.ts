@@ -8,17 +8,41 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  console.log("Validate test function started");
+  
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      status: 200,
+      headers: corsHeaders 
+    });
+  }
+
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ 
+      error: 'Method not allowed',
+      details: 'Only POST requests are supported'
+    }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   let requestBody;
   try {
     const bodyText = await req.text();
-    console.log('Received request body length:', bodyText.length);
+    console.log('Received request body length:', bodyText?.length || 0);
     
     if (!bodyText || bodyText.trim() === '') {
-      throw new Error('Empty request body');
+      console.log('Empty request body received');
+      return new Response(JSON.stringify({ 
+        error: 'Empty request body',
+        details: 'Please provide question and answer for validation'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
     
     requestBody = JSON.parse(bodyText);
@@ -35,14 +59,28 @@ serve(async (req) => {
   }
 
   try {
-    const { question, answer, userName } = requestBody;
+    const { question, answer, userName } = requestBody || {};
 
     if (!question || !answer) {
-      throw new Error('Question and answer are required');
+      console.error('Missing required fields:', { hasQuestion: !!question, hasAnswer: !!answer });
+      return new Response(JSON.stringify({ 
+        error: 'Missing required fields',
+        details: 'Question and answer are required'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     if (typeof question !== 'string' || typeof answer !== 'string') {
-      throw new Error('Question and answer must be strings');
+      console.error('Invalid field types:', { questionType: typeof question, answerType: typeof answer });
+      return new Response(JSON.stringify({ 
+        error: 'Invalid field types',
+        details: 'Question and answer must be strings'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // @ts-expect-error Deno global is available at runtime
@@ -50,7 +88,14 @@ serve(async (req) => {
     console.log('OpenRouter API key exists:', !!openrouterApiKey);
     
     if (!openrouterApiKey) {
-      throw new Error('OpenRouter API key not configured in environment variables');
+      console.error('OpenRouter API key not configured');
+      return new Response(JSON.stringify({ 
+        error: 'OpenRouter API key not configured',
+        details: 'Server configuration issue - API key missing'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     console.log('Validating test answer...');
@@ -90,7 +135,7 @@ Please evaluate this answer and provide your assessment in the required format.`
       max_tokens: 300,
     };
 
-    // Call DeepSeek API with timeout
+    // Call OpenRouter API with timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
 
@@ -105,55 +150,67 @@ Please evaluate this answer and provide your assessment in the required format.`
     });
 
     clearTimeout(timeoutId);
+
     console.log('OpenRouter API response status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('OpenRouter API error:', errorText);
-      throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+      return new Response(JSON.stringify({ 
+        error: `OpenRouter API error: ${response.status}`,
+        details: errorText || 'Unknown API error'
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const data = await response.json();
-    const validationContent = data.choices?.[0]?.message?.content;
+    console.log('OpenRouter response received successfully');
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error('Invalid OpenRouter response format:', data);
+      return new Response(JSON.stringify({ 
+        error: 'Invalid response format from OpenRouter API',
+        details: 'The AI service returned an unexpected response format'
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    const aiResponse = data.choices[0].message.content;
+    console.log('AI validation response received');
 
-    if (!validationContent) {
-      console.error('No validation response from OpenRouter API:', data);
-      throw new Error('No validation response from OpenRouter API');
+    // Parse the response using regex
+    const credibilityMatch = aiResponse.match(/<CREDIBILITY>(.*?)<\/CREDIBILITY>/s);
+    const reasonMatch = aiResponse.match(/<REASON>(.*?)<\/REASON>/s);
+
+    if (!credibilityMatch || !reasonMatch) {
+      console.error('Could not parse AI response:', aiResponse);
+      return new Response(JSON.stringify({ 
+        error: 'Could not parse AI validation response',
+        details: 'The AI service returned an invalid response format'
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    console.log('Validation content received:', validationContent.substring(0, 200));
+    const credibility = credibilityMatch[1].trim().toLowerCase();
+    const reason = reasonMatch[1].trim();
 
-    // Parse the validation result with improved regex
-    const credibilityMatch = validationContent.match(/<CREDIBILITY>\s*(true|false)\s*<\/CREDIBILITY>/i);
-    const reasonMatch = validationContent.match(/<REASON>\s*(.*?)\s*<\/REASON>/is);
+    // Convert string to boolean
+    const isCorrect = credibility === 'true' || credibility === 'correct' || credibility === 'yes';
 
-    if (!credibilityMatch) {
-      console.error('Could not parse credibility from response:', validationContent);
-      throw new Error('Invalid validation response format - missing credibility');
-    }
-
-    const credible = credibilityMatch[1].trim().toLowerCase() === 'true';
-    const reason = reasonMatch ? reasonMatch[1].trim() : 'Unable to extract validation reason';
-
-    // Fallback validation if parsing fails
-    if (!reasonMatch) {
-      console.warn('Could not parse reason, using fallback logic');
-      // Simple fallback logic based on content analysis
-      const lowerContent = validationContent.toLowerCase();
-      if (lowerContent.includes('correct') || lowerContent.includes('right') || lowerContent.includes('accurate')) {
-        // Keep the credible value from the credibility tag
-      } else if (lowerContent.includes('incorrect') || lowerContent.includes('wrong') || lowerContent.includes('inaccurate')) {
-        // Keep the credible value from the credibility tag
-      }
-    }
-
-    console.log('Test validation completed:', { credible, reason: reason.substring(0, 100) });
-
-    return new Response(JSON.stringify({ 
-      credible,
+    console.log('Validation completed successfully');
+    
+    return new Response(JSON.stringify({
+      isCorrect,
       reason,
       success: true
     }), {
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
@@ -161,15 +218,11 @@ Please evaluate this answer and provide your assessment in the required format.`
     console.error('Error in validate-test function:', error);
     console.error('Error stack:', error.stack);
     
-    // Provide fallback validation in case of API failure
-    const fallbackResponse = {
-      credible: false,
-      reason: 'Unable to validate answer due to technical issues. Please try again or contact support.',
-      success: false,
-      error: error.message
-    };
-    
-    return new Response(JSON.stringify(fallbackResponse), {
+    return new Response(JSON.stringify({ 
+      error: error.message || 'Unknown error occurred',
+      details: 'Test validation failed',
+      success: false
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

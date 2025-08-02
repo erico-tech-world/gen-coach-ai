@@ -12,7 +12,21 @@ serve(async (req) => {
   
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      status: 200,
+      headers: corsHeaders 
+    });
+  }
+
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ 
+      error: 'Method not allowed',
+      details: 'Only POST requests are supported'
+    }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   try {
@@ -22,10 +36,21 @@ serve(async (req) => {
     
     try {
       const bodyText = await req.text();
+      console.log('Request body length:', bodyText?.length || 0);
+      
       if (!bodyText || bodyText.trim() === '') {
-        throw new Error('Empty request body');
+        console.log('Empty request body received');
+        return new Response(JSON.stringify({ 
+          error: 'Empty request body',
+          details: 'Please provide a message in the request body'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
+      
       requestData = JSON.parse(bodyText);
+      console.log('Request data parsed successfully');
     } catch (parseError) {
       console.error('Request parsing error:', parseError);
       return new Response(JSON.stringify({ 
@@ -37,9 +62,9 @@ serve(async (req) => {
       });
     }
     
-    console.log('Request data received:', { hasMessage: !!requestData.message });
+    console.log('Request data received:', { hasMessage: !!requestData?.message });
     
-    const { message } = requestData;
+    const { message } = requestData || {};
 
     if (!message || typeof message !== 'string' || message.trim() === '') {
       console.error('Invalid message in request');
@@ -52,7 +77,7 @@ serve(async (req) => {
       });
     }
 
-    // Check for DeepSeek API key
+    // Check for OpenRouter API key
     console.log("Checking OpenRouter API key");
     // @ts-expect-error Deno global is available at runtime
     const openrouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
@@ -68,7 +93,7 @@ serve(async (req) => {
       });
     }
 
-    // Prepare API request for DeepSeek with improved prompt
+    // Prepare API request for OpenRouter with improved prompt
     console.log(`Processing message: "${message.substring(0, 100)}${message.length > 100 ? '...' : ''}"`);
     
     const requestPayload = {
@@ -100,13 +125,13 @@ Focus on being helpful, educational, and encouraging while maintaining a convers
     
     console.log("Calling OpenRouter API");
 
-    // Call DeepSeek API with timeout and retry logic
-    let deepseekResponse;
+    // Call OpenRouter API with timeout and retry logic
+    let openrouterResponse;
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
       
-      deepseekResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      openrouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${openrouterApiKey}`,
@@ -118,7 +143,7 @@ Focus on being helpful, educational, and encouraging while maintaining a convers
       
       clearTimeout(timeoutId);
     } catch (fetchError) {
-      console.error('DeepSeek API fetch error:', fetchError);
+      console.error('OpenRouter API fetch error:', fetchError);
       if (fetchError.name === 'AbortError') {
         return new Response(JSON.stringify({ 
           error: 'Request timeout',
@@ -131,14 +156,14 @@ Focus on being helpful, educational, and encouraging while maintaining a convers
       throw fetchError;
     }
 
-    console.log(`OpenRouter API response status: ${deepseekResponse.status}`);
+    console.log(`OpenRouter API response status: ${openrouterResponse.status}`);
 
-    if (!deepseekResponse.ok) {
-      const errorText = await deepseekResponse.text();
+    if (!openrouterResponse.ok) {
+      const errorText = await openrouterResponse.text();
       console.error(`OpenRouter API error: ${errorText}`);
       
       // Handle specific error cases
-      if (deepseekResponse.status === 401) {
+      if (openrouterResponse.status === 401) {
         return new Response(JSON.stringify({ 
           error: 'Authentication failed',
           details: 'Invalid OpenRouter API key or authentication issue'
@@ -146,7 +171,7 @@ Focus on being helpful, educational, and encouraging while maintaining a convers
           status: 502,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
-      } else if (deepseekResponse.status === 429) {
+      } else if (openrouterResponse.status === 429) {
         return new Response(JSON.stringify({ 
           error: 'Rate limit exceeded',
           details: 'Too many requests to OpenRouter. Please try again later.'
@@ -157,7 +182,7 @@ Focus on being helpful, educational, and encouraging while maintaining a convers
       }
       
       return new Response(JSON.stringify({ 
-        error: `OpenRouter API error: ${deepseekResponse.status}`,
+        error: `OpenRouter API error: ${openrouterResponse.status}`,
         details: errorText || 'Unknown API error'
       }), {
         status: 502,
@@ -168,9 +193,9 @@ Focus on being helpful, educational, and encouraging while maintaining a convers
     // Parse API response with validation
     let responseData;
     try {
-      responseData = await deepseekResponse.json();
+      responseData = await openrouterResponse.json();
     } catch (jsonError) {
-      console.error('Failed to parse DeepSeek response as JSON:', jsonError);
+      console.error('Failed to parse OpenRouter response as JSON:', jsonError);
       return new Response(JSON.stringify({ 
         error: 'Invalid response format',
         details: 'The AI service returned an invalid response'
@@ -180,14 +205,14 @@ Focus on being helpful, educational, and encouraging while maintaining a convers
       });
     }
     
-    console.log("DeepSeek API response received");
+    console.log("OpenRouter API response received");
     
     const aiResponse = responseData?.choices?.[0]?.message?.content;
 
     if (!aiResponse || typeof aiResponse !== 'string') {
-      console.error(`No valid response content from DeepSeek API:`, responseData);
+      console.error(`No valid response content from OpenRouter API:`, responseData);
       return new Response(JSON.stringify({ 
-        error: 'No response content from DeepSeek API',
+        error: 'No response content from OpenRouter API',
         details: 'The AI service did not provide a valid response'
       }), {
         status: 502,
@@ -201,6 +226,7 @@ Focus on being helpful, educational, and encouraging while maintaining a convers
       response: aiResponse.trim(),
       success: true 
     }), {
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
     

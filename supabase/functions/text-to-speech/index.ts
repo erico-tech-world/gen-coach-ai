@@ -8,14 +8,31 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  console.log("Text-to-speech function started");
+  
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      status: 200,
+      headers: corsHeaders 
+    });
+  }
+
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ 
+      error: 'Method not allowed',
+      details: 'Only POST requests are supported'
+    }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   let requestBody;
   try {
     const bodyText = await req.text();
-    console.log('Received request body length:', bodyText.length);
+    console.log('Received request body length:', bodyText?.length || 0);
     
     if (!bodyText || bodyText.trim() === '') {
       console.error('Empty request body received');
@@ -53,7 +70,7 @@ serve(async (req) => {
   }
 
   try {
-    const { text } = requestBody;
+    const { text } = requestBody || {};
 
     // Validate input
     if (!text || typeof text !== 'string' || text.trim() === '') {
@@ -86,8 +103,8 @@ serve(async (req) => {
     if (!groqApiKey) {
       console.error('Groq API key not configured');
       return new Response(JSON.stringify({ 
-        error: 'Groq API key not configured in environment variables',
-        details: 'Server configuration issue'
+        error: 'Groq API key not configured',
+        details: 'Server configuration issue - API key missing'
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -100,112 +117,97 @@ serve(async (req) => {
       preview: text.substring(0, 50) + (text.length > 50 ? '...' : '')
     });
 
-    // Log request payload for debugging (without API key)
-    const requestPayload = {
-      model: 'playai-tts',
-      input: text.trim(),
-      voice: 'Calum-PlayAI',
-      response_format: 'wav',
-    };
-    console.log('Groq TTS request payload:', requestPayload);
+    // Call Groq TTS API
+    const groqResponse = await fetch('https://api.groq.com/openai/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${groqApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'playai-tts',
+        voice: 'Calum-PlayAI',
+        input: text.trim(),
+        response_format: 'wav'
+      }),
+    });
 
-    // Generate speech using Groq TTS with timeout
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout for TTS
+    console.log('Groq TTS API response status:', groqResponse.status);
 
-      const response = await fetch('https://api.groq.com/openai/v1/audio/speech', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${groqApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestPayload),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-      console.log('Groq TTS API response status:', response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Groq TTS API error response:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorText: errorText,
-          requestPayload: requestPayload
-        });
-        
-        if (response.status === 401) {
-          throw new Error('Authentication failed - Invalid API key');
-        } else if (response.status === 429) {
-          throw new Error('Rate limit exceeded - Please try again later');
-        } else if (response.status === 400) {
-          throw new Error(`Bad request - Check model/voice parameters: ${errorText}`);
-        } else if (response.status === 404) {
-          throw new Error(`Model or endpoint not found: ${errorText}`);
-        } else {
-          throw new Error(`Groq TTS API error: ${response.status} - ${errorText}`);
-        }
-      }
-
-      // Convert audio buffer to base64
-      try {
-        const arrayBuffer = await response.arrayBuffer();
-        
-        if (arrayBuffer.byteLength === 0) {
-          throw new Error('Received empty audio response');
-        }
-        
-        const base64Audio = btoa(
-          String.fromCharCode(...new Uint8Array(arrayBuffer))
-        );
-
-        console.log('Audio conversion successful:', {
-          originalSize: arrayBuffer.byteLength,
-          base64Size: base64Audio.length
-        });
-
+    if (!groqResponse.ok) {
+      const errorText = await groqResponse.text();
+      console.error('Groq TTS API error:', errorText);
+      
+      // Handle specific error cases
+      if (groqResponse.status === 401) {
         return new Response(JSON.stringify({ 
-          audioContent: base64Audio,
-          contentType: 'audio/wav',
-          success: true
+          error: 'Authentication failed',
+          details: 'Invalid Groq API key or authentication issue'
         }), {
+          status: 502,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
-      } catch (conversionError) {
-        console.error('Audio conversion error:', conversionError.message);
-        throw new Error('Failed to convert audio response');
-      }
-    } catch (apiError) {
-      console.error('Groq TTS API call failed:', apiError.message);
-      
-      if (apiError.name === 'AbortError') {
+      } else if (groqResponse.status === 400) {
         return new Response(JSON.stringify({ 
-          error: 'Request timeout',
-          details: 'Text-to-speech generation took too long'
+          error: 'Invalid request',
+          details: 'The text or parameters provided are invalid'
         }), {
-          status: 504,
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } else if (groqResponse.status === 429) {
+        return new Response(JSON.stringify({ 
+          error: 'Rate limit exceeded',
+          details: 'Too many requests to Groq TTS. Please try again later.'
+        }), {
+          status: 429,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
       
       return new Response(JSON.stringify({ 
-        error: 'Failed to get response from Groq TTS API',
-        details: apiError.message
+        error: `Groq TTS API error: ${groqResponse.status}`,
+        details: errorText || 'Unknown API error'
       }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Get the audio data
+    const audioBuffer = await groqResponse.arrayBuffer();
+    console.log('Audio data received, size:', audioBuffer.byteLength);
+
+    if (audioBuffer.byteLength === 0) {
+      console.error('Empty audio response from Groq TTS API');
+      return new Response(JSON.stringify({ 
+        error: 'Empty audio response',
+        details: 'The TTS service returned empty audio data'
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log('Text-to-speech conversion completed successfully');
+    
+    // Return the audio data
+    return new Response(audioBuffer, {
+      status: 200,
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'audio/wav',
+        'Content-Length': audioBuffer.byteLength.toString(),
+      },
+    });
+
   } catch (error) {
-    console.error('Error in text-to-speech function:', error.message);
+    console.error('Error in text-to-speech function:', error);
     console.error('Error stack:', error.stack);
     
     return new Response(JSON.stringify({ 
       error: error.message || 'Unknown error occurred',
-      details: 'Text-to-speech processing failed',
-      timestamp: new Date().toISOString(),
+      details: 'Text-to-speech conversion failed',
       success: false
     }), {
       status: 500,

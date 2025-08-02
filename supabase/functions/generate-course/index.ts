@@ -23,21 +23,45 @@ interface YouTubeLink {
 }
 
 serve(async (req) => {
+  console.log("Generate course function started");
+  
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { 
+      status: 200,
+      headers: corsHeaders 
+    });
+  }
+
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ 
+      error: 'Method not allowed',
+      details: 'Only POST requests are supported'
+    }), {
+      status: 405,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   let requestBody;
   try {
     const bodyText = await req.text();
-    console.log('Received request body length:', bodyText.length);
+    console.log('Received request body length:', bodyText?.length || 0);
     
-    if (!bodyText) {
-      throw new Error('Empty request body');
+    if (!bodyText || bodyText.trim() === '') {
+      console.log('Empty request body received');
+      return new Response(JSON.stringify({ 
+        error: 'Empty request body',
+        details: 'Please provide course generation parameters'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
     
     requestBody = JSON.parse(bodyText);
-    console.log('Parsed request - prompt length:', requestBody.prompt?.length || 0);
+    console.log('Parsed request - prompt length:', requestBody?.prompt?.length || 0);
   } catch (parseError) {
     console.error('JSON parsing error:', parseError);
     return new Response(JSON.stringify({ 
@@ -50,10 +74,17 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, userId, userName } = requestBody;
+    const { prompt, userId, userName } = requestBody || {};
 
     if (!prompt || !userId) {
-      throw new Error('Prompt and userId are required');
+      console.error('Missing required fields:', { hasPrompt: !!prompt, hasUserId: !!userId });
+      return new Response(JSON.stringify({ 
+        error: 'Missing required fields',
+        details: 'Prompt and userId are required'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // @ts-expect-error Deno global is available at runtime
@@ -73,7 +104,14 @@ serve(async (req) => {
     });
 
     if (!openrouterApiKey) {
-      throw new Error('OpenRouter API key not configured in environment variables');
+      console.error('OpenRouter API key not configured');
+      return new Response(JSON.stringify({ 
+        error: 'OpenRouter API key not configured',
+        details: 'Server configuration issue - API key missing'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     console.log('Starting course generation with OpenRouter DeepSeek model...');
@@ -107,15 +145,27 @@ serve(async (req) => {
     if (!openrouterResponse.ok) {
       const errorText = await openrouterResponse.text();
       console.error('OpenRouter API error:', errorText);
-      throw new Error(`OpenRouter API error: ${openrouterResponse.status} - ${errorText}`);
+      return new Response(JSON.stringify({ 
+        error: `OpenRouter API error: ${openrouterResponse.status}`,
+        details: errorText || 'Unknown API error'
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const data = await openrouterResponse.json();
-    console.log('DeepSeek response received successfully');
+    console.log('OpenRouter response received successfully');
     
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      console.error('Invalid DeepSeek response format:', data);
-      throw new Error('Invalid response format from DeepSeek API');
+      console.error('Invalid OpenRouter response format:', data);
+      return new Response(JSON.stringify({ 
+        error: 'Invalid response format from OpenRouter API',
+        details: 'The AI service returned an unexpected response format'
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
     
     const generatedContent = data.choices[0].message.content;
@@ -265,14 +315,26 @@ serve(async (req) => {
 
         if (insertError) {
           console.error('Error saving course:', insertError);
-          throw new Error(`Database error: ${insertError.message}`);
+          return new Response(JSON.stringify({ 
+            error: `Database error: ${insertError.message}`,
+            details: 'Failed to save course to database'
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
         } else {
           courseId = courseData.id;
           console.log('Course saved successfully with ID:', courseId);
         }
       } catch (dbError) {
         console.error('Database operation failed:', dbError);
-        throw new Error(`Failed to save course: ${dbError.message}`);
+        return new Response(JSON.stringify({ 
+          error: `Failed to save course: ${dbError.message}`,
+          details: 'Database operation failed'
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
     }
 
@@ -288,6 +350,7 @@ serve(async (req) => {
     console.log('Course generation completed successfully');
     
     return new Response(JSON.stringify(resultResponse), {
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
