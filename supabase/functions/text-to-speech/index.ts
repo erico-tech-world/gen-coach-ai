@@ -84,121 +84,125 @@ serve(async (req) => {
       });
     }
 
-    // Check text length (Groq TTS has limits, assume 4096 for safety)
-    if (text.length > 4096) {
+    // Check text length (limit to 1000 characters for stability)
+    if (text.length > 1000) {
       console.error('Text too long:', text.length);
       return new Response(JSON.stringify({ 
         error: 'Text too long',
-        details: 'Text must be 4096 characters or less'
+        details: 'Text must be 1000 characters or less'
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // @ts-expect-error Deno global is available at runtime
-    const groqApiKey = Deno.env.get('GROQ_API_KEY');
-    console.log('Groq API key exists:', !!groqApiKey);
-    
-    if (!groqApiKey) {
-      console.error('Groq API key not configured');
-      return new Response(JSON.stringify({ 
-        error: 'Groq API key not configured',
-        details: 'Server configuration issue - API key missing'
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     console.log('Processing text-to-speech request:', {
       textLength: text.length,
-      voice: 'Calum-PlayAI',
       preview: text.substring(0, 50) + (text.length > 50 ? '...' : '')
     });
 
-    // Call Groq TTS API
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/audio/speech', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${groqApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'playai-tts',
-        voice: 'Calum-PlayAI',
-        input: text.trim(),
-        response_format: 'wav'
-      }),
-    });
-
-    console.log('Groq TTS API response status:', groqResponse.status);
-
-    if (!groqResponse.ok) {
-      const errorText = await groqResponse.text();
-      console.error('Groq TTS API error:', errorText);
-      
-      // Handle specific error cases
-      if (groqResponse.status === 401) {
-        return new Response(JSON.stringify({ 
-          error: 'Authentication failed',
-          details: 'Invalid Groq API key or authentication issue'
-        }), {
-          status: 502,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      } else if (groqResponse.status === 400) {
-        return new Response(JSON.stringify({ 
-          error: 'Invalid request',
-          details: 'The text or parameters provided are invalid'
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      } else if (groqResponse.status === 429) {
-        return new Response(JSON.stringify({ 
-          error: 'Rate limit exceeded',
-          details: 'Too many requests to Groq TTS. Please try again later.'
-        }), {
-          status: 429,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      
-      return new Response(JSON.stringify({ 
-        error: `Groq TTS API error: ${groqResponse.status}`,
-        details: errorText || 'Unknown API error'
-      }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Get the audio data
-    const audioBuffer = await groqResponse.arrayBuffer();
-    console.log('Audio data received, size:', audioBuffer.byteLength);
-
-    if (audioBuffer.byteLength === 0) {
-      console.error('Empty audio response from Groq TTS API');
-      return new Response(JSON.stringify({ 
-        error: 'Empty audio response',
-        details: 'The TTS service returned empty audio data'
-      }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    console.log('Text-to-speech conversion completed successfully');
+    // Try multiple TTS approaches in order of preference
     
-    // Return the audio data
-    return new Response(audioBuffer, {
-      status: 200,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'audio/wav',
-        'Content-Length': audioBuffer.byteLength.toString(),
-      },
+    // First, try OpenRouter with DeepSeek TTS if available
+    // @ts-expect-error Deno global is available at runtime
+    const openrouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
+    
+    if (openrouterApiKey) {
+      console.log('Attempting TTS with OpenRouter...');
+      try {
+        const openrouterResponse = await fetch('https://openrouter.ai/api/v1/audio/speech', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openrouterApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'openai/tts-1',
+            voice: 'alloy',
+            input: text.trim(),
+            response_format: 'wav'
+          }),
+        });
+
+        if (openrouterResponse.ok) {
+          const audioBuffer = await openrouterResponse.arrayBuffer();
+          if (audioBuffer.byteLength > 0) {
+            console.log('OpenRouter TTS successful, audio size:', audioBuffer.byteLength);
+            
+            // Convert to base64 for frontend compatibility
+            const uint8Array = new Uint8Array(audioBuffer);
+            const base64Audio = btoa(String.fromCharCode(...uint8Array));
+            
+            return new Response(JSON.stringify({
+              audioContent: base64Audio,
+              success: true
+            }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+        console.log('OpenRouter TTS failed with status:', openrouterResponse.status);
+      } catch (error) {
+        console.log('OpenRouter TTS error:', error.message);
+      }
+    }
+
+    // Fallback: Try Groq TTS if API key is available
+    // @ts-expect-error Deno global is available at runtime
+    const groqApiKey = Deno.env.get('GROQ_API_KEY');
+    
+    if (groqApiKey) {
+      console.log('Attempting TTS with Groq...');
+      try {
+        const groqResponse = await fetch('https://api.groq.com/openai/v1/audio/speech', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${groqApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'tts-1',
+            voice: 'alloy',
+            input: text.trim(),
+            response_format: 'wav'
+          }),
+        });
+
+        if (groqResponse.ok) {
+          const audioBuffer = await groqResponse.arrayBuffer();
+          if (audioBuffer.byteLength > 0) {
+            console.log('Groq TTS successful, audio size:', audioBuffer.byteLength);
+            
+            // Convert to base64 for frontend compatibility
+            const uint8Array = new Uint8Array(audioBuffer);
+            const base64Audio = btoa(String.fromCharCode(...uint8Array));
+            
+            return new Response(JSON.stringify({
+              audioContent: base64Audio,
+              success: true
+            }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+        console.log('Groq TTS failed with status:', groqResponse.status);
+      } catch (error) {
+        console.log('Groq TTS error:', error.message);
+      }
+    }
+
+    // Final fallback: Use a free TTS service or return error with browser fallback suggestion
+    console.log('All external TTS services failed, suggesting browser fallback');
+    
+    return new Response(JSON.stringify({ 
+      error: 'TTS service unavailable',
+      details: 'External TTS services are not configured or unavailable. The browser\'s built-in speech synthesis will be used instead.',
+      useBrowserFallback: true
+    }), {
+      status: 503,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {

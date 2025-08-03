@@ -206,7 +206,7 @@ Please evaluate this answer and provide your assessment in the required format.`
     console.log('Validation completed successfully');
     
     return new Response(JSON.stringify({
-      isCorrect,
+      credible: isCorrect,
       reason,
       success: true
     }), {

@@ -21,15 +21,19 @@ export function useTextToSpeech() {
         throw new Error(response.error.message);
       }
 
-      return response.data.audioContent;
+      // Check if we should use browser fallback
+      if (response.data?.useBrowserFallback) {
+        console.log('Using browser speech synthesis fallback');
+        return 'BROWSER_FALLBACK';
+      }
+
+      return response.data?.audioContent || null;
     } catch (error) {
       console.error('TTS generation error:', error);
-      toast({
-        title: "Speech Generation Failed",
-        description: error instanceof Error ? error.message : "Failed to generate speech. Please try again.",
-        variant: "destructive"
-      });
-      return null;
+      
+      // If there's any error, suggest browser fallback
+      console.log('TTS service failed, using browser fallback');
+      return 'BROWSER_FALLBACK';
     } finally {
       setIsGenerating(false);
     }
@@ -76,10 +80,73 @@ export function useTextToSpeech() {
     }
   };
 
+  const useBrowserSpeech = (text: string) => {
+    if (!window.speechSynthesis) {
+      toast({
+        title: "Speech Not Supported",
+        description: "Your browser doesn't support text-to-speech.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsPlaying(true);
+    
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+    
+    // Try to use a good voice
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find(voice => 
+      voice.lang.startsWith('en') && 
+      (voice.name.includes('Google') || voice.name.includes('Microsoft') || voice.name.includes('Alex'))
+    ) || voices.find(voice => voice.lang.startsWith('en')) || voices[0];
+    
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
+    
+    utterance.onend = () => {
+      setIsPlaying(false);
+    };
+    
+    utterance.onerror = (event) => {
+      setIsPlaying(false);
+      console.error('Speech synthesis error:', event);
+      toast({
+        title: "Speech Error",
+        description: "Failed to speak text. Please try again.",
+        variant: "destructive"
+      });
+    };
+    
+    window.speechSynthesis.speak(utterance);
+  };
+
   const speak = async (text: string) => {
-    const audioContent = await generateSpeech(text);
-    if (audioContent) {
+    // Limit text length for better performance
+    const textToSpeak = text.length > 1000 ? text.substring(0, 1000) + "..." : text;
+    
+    const audioContent = await generateSpeech(textToSpeak);
+    
+    if (audioContent === 'BROWSER_FALLBACK') {
+      // Use browser's built-in speech synthesis
+      useBrowserSpeech(textToSpeak);
+    } else if (audioContent) {
+      // Use external TTS service audio
       await playAudio(audioContent);
+    } else {
+      // Fallback to browser speech if no audio content
+      toast({
+        title: "Using Browser Speech",
+        description: "External TTS service unavailable, using browser speech synthesis.",
+      });
+      useBrowserSpeech(textToSpeak);
     }
   };
 
