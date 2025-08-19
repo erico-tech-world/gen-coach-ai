@@ -141,13 +141,17 @@ serve(async (req) => {
       });
     }
 
-    // Check text length (Groq TTS has limits, assume 4096 for safety)
-    if (text.length > 4096) {
+    // Check text length (limit to 1000 characters for stability)
+    if (text.length > 1000) {
       console.error('Text too long:', text.length);
       return new Response(JSON.stringify({ 
         success: false,
         error: 'Text too long',
+<<<<<<< HEAD
         details: `Text must be 4096 characters or less. Current length: ${text.length}. Please provide shorter text.`
+=======
+        details: 'Text must be 1000 characters or less'
+>>>>>>> faa2b6721374322d48df3745336e930eb429e02a
       }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -167,6 +171,7 @@ serve(async (req) => {
       });
     }
 
+<<<<<<< HEAD
     // @ts-expect-error Deno global is available at runtime
     const groqApiKey = Deno.env.get('GROQ_API_KEY');
     console.log('Groq API key exists:', !!groqApiKey);
@@ -252,6 +257,116 @@ serve(async (req) => {
         binary += String.fromCharCode(...chunk);
       }
       const base64Audio = btoa(binary);
+=======
+    console.log('Processing text-to-speech request:', {
+      textLength: text.length,
+      preview: text.substring(0, 50) + (text.length > 50 ? '...' : '')
+    });
+
+    // Try multiple TTS approaches in order of preference
+    
+    // First, try OpenRouter with DeepSeek TTS if available
+    // @ts-expect-error Deno global is available at runtime
+    const openrouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
+    
+    if (openrouterApiKey) {
+      console.log('Attempting TTS with OpenRouter...');
+      try {
+        const openrouterResponse = await fetch('https://openrouter.ai/api/v1/audio/speech', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openrouterApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'openai/tts-1',
+            voice: 'alloy',
+            input: text.trim(),
+            response_format: 'wav'
+          }),
+        });
+
+        if (openrouterResponse.ok) {
+          const audioBuffer = await openrouterResponse.arrayBuffer();
+          if (audioBuffer.byteLength > 0) {
+            console.log('OpenRouter TTS successful, audio size:', audioBuffer.byteLength);
+            
+            // Convert to base64 for frontend compatibility
+            const uint8Array = new Uint8Array(audioBuffer);
+            const base64Audio = btoa(String.fromCharCode(...uint8Array));
+            
+            return new Response(JSON.stringify({
+              audioContent: base64Audio,
+              success: true
+            }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+        console.log('OpenRouter TTS failed with status:', openrouterResponse.status);
+      } catch (error) {
+        console.log('OpenRouter TTS error:', error.message);
+      }
+    }
+
+    // Fallback: Try Groq TTS if API key is available
+    // @ts-expect-error Deno global is available at runtime
+    const groqApiKey = Deno.env.get('GROQ_API_KEY');
+    
+    if (groqApiKey) {
+      console.log('Attempting TTS with Groq...');
+      try {
+        const groqResponse = await fetch('https://api.groq.com/openai/v1/audio/speech', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${groqApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'tts-1',
+            voice: 'alloy',
+            input: text.trim(),
+            response_format: 'wav'
+          }),
+        });
+
+        if (groqResponse.ok) {
+          const audioBuffer = await groqResponse.arrayBuffer();
+          if (audioBuffer.byteLength > 0) {
+            console.log('Groq TTS successful, audio size:', audioBuffer.byteLength);
+            
+            // Convert to base64 for frontend compatibility
+            const uint8Array = new Uint8Array(audioBuffer);
+            const base64Audio = btoa(String.fromCharCode(...uint8Array));
+            
+            return new Response(JSON.stringify({
+              audioContent: base64Audio,
+              success: true
+            }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+        console.log('Groq TTS failed with status:', groqResponse.status);
+      } catch (error) {
+        console.log('Groq TTS error:', error.message);
+      }
+    }
+
+    // Final fallback: Use a free TTS service or return error with browser fallback suggestion
+    console.log('All external TTS services failed, suggesting browser fallback');
+    
+    return new Response(JSON.stringify({ 
+      error: 'TTS service unavailable',
+      details: 'External TTS services are not configured or unavailable. The browser\'s built-in speech synthesis will be used instead.',
+      useBrowserFallback: true
+    }), {
+      status: 503,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+>>>>>>> faa2b6721374322d48df3745336e930eb429e02a
 
       console.log('Audio conversion successful:', {
         originalSize: audioBuffer.byteLength,

@@ -108,6 +108,13 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
     loadCourseContent();
   }, [courseId, courses, courseTitle, toast]);
 
+  // Synchronize local playing state with TTS playing state
+  useEffect(() => {
+    if (!isTTSPlaying) {
+      setIsPlaying(false);
+    }
+  }, [isTTSPlaying]);
+
   const toggleModule = (moduleId: string) => {
     setModules(prev => prev.map(module => 
       module.id === moduleId 
@@ -263,6 +270,20 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
     }
   };
 
+  const handlePlayPause = () => {
+    if (isTTSPlaying) {
+      // Stop current speech
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      setIsPlaying(false);
+    } else {
+      // Start playing course introduction or active module
+      setIsPlaying(true);
+      handleListen();
+    }
+  };
+
   const handleParaphrase = () => {
     toast({
       title: "Feature Coming Soon",
@@ -383,6 +404,7 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
                   variant="ghost"
                   size="icon"
                   className="absolute inset-0 w-full h-full bg-black/20 hover:bg-black/30 transition-colors"
+<<<<<<< HEAD
                   onClick={handleListen}
                 >
                   {isPlaying ? (
@@ -390,6 +412,15 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
                   ) : (
                     <Play className="w-12 h-12 text-white" />
                   )}
+=======
+                  onClick={handlePlayPause}
+                                  >
+                    {isTTSPlaying ? (
+                      <Pause className="w-12 h-12 text-white" />
+                    ) : (
+                      <Play className="w-12 h-12 text-white" />
+                    )}
+>>>>>>> faa2b6721374322d48df3745336e930eb429e02a
                 </Button>
               </div>
             </Card>
