@@ -46,3 +46,6 @@ port = 54329
 
 [functions.realtime-voice-chat]
 verify_jwt = false
+
+[functions.text-to-speech]
+verify_jwt = false

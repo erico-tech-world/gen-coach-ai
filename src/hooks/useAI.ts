@@ -105,9 +105,34 @@ export function useAI() {
     }
   };
 
+  const buildLecture = async (outline: string, topic: string, wikipediaSummary?: string): Promise<string | null> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('lecture-mode', {
+        body: { outline, topic, wikipediaSummary }
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+      if (!data || data.success !== true || !data.lecture) {
+        throw new Error(data?.error || 'Failed to generate lecture');
+      }
+      return data.lecture as string;
+    } catch (e) {
+      console.error('Lecture build error:', e);
+      toast({
+        title: 'Lecture Generation Failed',
+        description: e instanceof Error ? e.message : 'Could not generate lecture script.',
+        variant: 'destructive'
+      });
+      return null;
+    }
+  };
+
   return {
     generateCourse,
     validateTest,
+    buildLecture,
     isGenerating
   };
 }

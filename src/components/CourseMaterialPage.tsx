@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 import { useCourses } from "@/hooks/useCourses";
+import { useAI } from "@/hooks/useAI";
 import { TestValidationModal } from "@/components/TestValidationModal";
 import { useToast } from "@/hooks/use-toast";
 
@@ -36,6 +37,7 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
   
   const { speak, isGenerating: isTTSGenerating, isPlaying: isTTSPlaying } = useTextToSpeech();
   const { courses, updateCourse } = useCourses();
+  const { buildLecture } = useAI();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -168,18 +170,96 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
     return totalModules > 0 ? (completedModules / totalModules) * 100 : 0;
   };
 
-  const handleListen = () => {
-    if (activeSection) {
-      const module = modules.find(module => module.id === activeSection);
-      if (module) {
-        speak(module.content);
+  const handleListen = async () => {
+    try {
+      if (activeSection) {
+        const module = modules.find(module => module.id === activeSection);
+        if (module) {
+          // Ensure we have valid content to speak
+          if (!module.content || module.content.trim().length < 5) {
+            toast({
+              title: "No Content to Speak",
+              description: "This module doesn't have enough content to generate speech.",
+              variant: "destructive"
+            });
+            return;
+          }
+
+          // Build an engaging lecture script from outline + content
+          const outline = `${module.title}\n${module.content}`;
+          const lecture = await buildLecture(outline, courseTitle);
+          const shortText = (lecture && lecture.length > 0)
+            ? lecture
+            : (module.content.length > 500 
+              ? `${module.title}. ${module.content.substring(0, 500)}...`
+              : `${module.title}. ${module.content}`);
+          
+          // Clean the text to ensure it's valid for TTS
+          const cleanText = shortText
+            .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+            .replace(/[^\w\s.,!?-]/g, '') // Remove special characters that might cause issues
+            .trim();
+          
+          if (cleanText.length < 5) {
+            toast({
+              title: "Invalid Content",
+              description: "The content couldn't be processed for speech generation.",
+              variant: "destructive"
+            });
+            return;
+          }
+          
+          console.log('Attempting to speak module:', module.title);
+          console.log('Original text length:', shortText.length);
+          console.log('Clean text length:', cleanText.length);
+          console.log('Clean text preview:', cleanText.substring(0, 100) + (cleanText.length > 100 ? '...' : ''));
+          
+          await speak(cleanText);
+        }
+      } else {
+        // If no section is selected, speak the course title and first module summary
+        const firstModule = modules[0];
+        if (firstModule && firstModule.content && firstModule.content.trim().length >= 5) {
+          const outline = `${firstModule.title}\n${firstModule.content}`;
+          const lecture = await buildLecture(outline, courseTitle);
+          const shortText = lecture && lecture.length > 0
+            ? lecture
+            : `Welcome to ${courseTitle}. ${firstModule.title}. ${firstModule.content.substring(0, 300)}...`;
+          
+          // Clean the text
+          const cleanText = shortText
+            .replace(/\s+/g, ' ')
+            .replace(/[^\w\s.,!?-]/g, '')
+            .trim();
+          
+          if (cleanText.length >= 5) {
+            console.log('Attempting to speak course introduction');
+            console.log('Clean text length:', cleanText.length);
+            console.log('Clean text preview:', cleanText.substring(0, 100) + (cleanText.length > 100 ? '...' : ''));
+            
+            await speak(cleanText);
+          } else {
+            toast({
+              title: "No Content to Speak",
+              description: "The course introduction couldn't be processed for speech generation.",
+              variant: "destructive"
+            });
+          }
+        } else {
+          toast({
+            title: "No Content Available",
+            description: "No course content is available to speak.",
+            variant: "destructive"
+          });
+        }
       }
-    } else {
-      // If no section is selected, speak the course title and first module
-      const firstModule = modules[0];
-      if (firstModule) {
-        speak(`Welcome to ${courseTitle}. ${firstModule.title}: ${firstModule.content}`);
-      }
+    } catch (error) {
+      console.error('Error in handleListen:', error);
+      toast({
+        title: "TTS Error",
+        description: "Failed to generate speech. Please try again or contact support.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -209,7 +289,7 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
             </div>
           </div>
           
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2 space-y-4">
               {[1, 2, 3].map((i) => (
                 <Card key={i} className="border-border">
@@ -251,24 +331,26 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex items-start md:items-center gap-3 md:gap-4 mb-6 md:mb-8">
           <Button
             variant="ghost"
             size="icon"
             onClick={onBack}
-            className="h-10 w-10"
+            className="h-10 w-10 shrink-0"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-foreground">{courseTitle}</h1>
-            <p className="text-muted-foreground">AI-Generated Course Content</p>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground leading-snug break-words">
+              {courseTitle}
+            </h1>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mt-1">
+              <p className="text-sm md:text-base text-muted-foreground">AI-Generated Course Content</p>
+              <Badge variant="secondary" className="w-fit text-xs md:text-sm">
+                {Math.round(calculateProgress())}% Complete
+              </Badge>
+            </div>
           </div>
-          
-          <Badge variant="secondary" className="text-sm">
-            {Math.round(calculateProgress())}% Complete
-          </Badge>
         </div>
 
         {/* Progress Bar */}
@@ -276,9 +358,9 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
           <Progress value={calculateProgress()} className="h-2" />
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Main Content */}
-          <div className="md:col-span-2 space-y-6">
+          <div className="md:col-span-2 space-y-6 order-2 md:order-1">
             {/* Course Video/Cover */}
             <Card className="border-border bg-card overflow-hidden">
               <div className="aspect-video bg-ai-gradient relative flex items-center justify-center">
@@ -301,7 +383,7 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
                   variant="ghost"
                   size="icon"
                   className="absolute inset-0 w-full h-full bg-black/20 hover:bg-black/30 transition-colors"
-                  onClick={() => setIsPlaying(!isPlaying)}
+                  onClick={handleListen}
                 >
                   {isPlaying ? (
                     <Pause className="w-12 h-12 text-white" />
@@ -390,21 +472,21 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
             </div>
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Course Actions */}
+          {/* Sidebar - Mobile Friendly */}
+          <div className="space-y-6 order-1 md:order-2">
+            {/* Course Actions - Mobile Friendly */}
             <Card className="border-border bg-card">
               <CardHeader>
-                <CardTitle className="text-lg">Course Tools</CardTitle>
+                <CardTitle className="text-base md:text-lg">Course Tools</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-3 flex flex-col sm:flex-row md:flex-col gap-2">
                 <Button variant="outline" className="w-full justify-start" onClick={handleParaphrase}>
                   <MessageSquare className="w-4 h-4 mr-2" />
-                  Paraphrase
+                  <span className="sm:hidden md:inline">Paraphrase</span>
                 </Button>
                 <Button variant="outline" className="w-full justify-start" onClick={handleExpatiate}>
                   <FileText className="w-4 h-4 mr-2" />
-                  Expatiate
+                  <span className="sm:hidden md:inline">Expatiate</span>
                 </Button>
                 <Button 
                   variant="outline" 
@@ -413,15 +495,17 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
                   disabled={isTTSGenerating || isTTSPlaying}
                 >
                   <Volume2 className="w-4 h-4 mr-2" />
-                  {isTTSGenerating ? "Generating..." : isTTSPlaying ? "Playing..." : "Listen"}
+                  <span className="sm:hidden md:inline">
+                    {isTTSGenerating ? "Generating..." : isTTSPlaying ? "Playing..." : "Listen"}
+                  </span>
                 </Button>
               </CardContent>
             </Card>
 
-            {/* Progress Summary */}
+            {/* Progress Summary - Mobile Friendly */}
             <Card className="border-border bg-card">
               <CardHeader>
-                <CardTitle className="text-lg">Progress Summary</CardTitle>
+                <CardTitle className="text-base md:text-lg">Progress Summary</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -449,6 +533,21 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
                 </div>
               </CardContent>
             </Card>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Progress Summary - Fixed at bottom */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-background border-t border-border p-4">
+        <div className="flex items-center justify-between max-w-6xl mx-auto">
+          <div className="flex items-center gap-2">
+            <div className="text-sm font-medium">{Math.round(calculateProgress())}%</div>
+            <Progress value={calculateProgress()} className="h-2 w-24" />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              {modules.filter(module => module.completed).length}/{modules.length} Completed
+            </span>
           </div>
         </div>
       </div>

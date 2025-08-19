@@ -65,6 +65,9 @@ export function CourseCreationOverlay({ isOpen, onClose }: CourseCreationOverlay
         setInput("");
         setDocumentContent("");
         setDocumentName("");
+        // Auto-refresh course list by refetching and closing overlay
+        await new Promise((r) => setTimeout(r, 300));
+        window.location.reload();
         onClose();
       }
     } catch (error) {
@@ -176,6 +179,15 @@ export function CourseCreationOverlay({ isOpen, onClose }: CourseCreationOverlay
                 </>
               )}
             </Button>
+            {isProcessing ? (
+              <p className="text-xs text-muted-foreground text-center">
+                This may take 1–2 minutes. Please keep this window open while we generate your course.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground text-center">
+                Tip: Generation can take 1–2 minutes depending on topic complexity.
+              </p>
+            )}
           </form>
 
           {documentContent && (

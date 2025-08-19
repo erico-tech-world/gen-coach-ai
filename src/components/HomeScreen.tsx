@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, BookOpen, Clock, Users, LogOut, Mic, ArrowLeft } from "lucide-react";
+import { Plus, BookOpen, Clock, Users, LogOut, Mic, ArrowLeft, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,7 @@ export function HomeScreen() {
   const [showCreationOverlay, setShowCreationOverlay] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [showVoiceChat, setShowVoiceChat] = useState(false);
-  const { courses, isLoading, createCourse } = useCourses();
+  const { courses, isLoading, createCourse, deleteCourse } = useCourses();
   const { signOut, user } = useAuth();
   const { userName } = useProfile();
 
@@ -116,13 +116,13 @@ export function HomeScreen() {
     <div className="min-h-screen bg-background p-6">
       {/* Header */}
       <div className="max-w-6xl mx-auto mb-8">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-ai-gradient flex items-center justify-center shadow-neural-glow">
-              <img src="/GenCoachImg.png" alt="GEN-COACH Logo" className="w-8 h-8" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 text-center sm:text-left">
+            <div className="w-16 h-16 sm:w-10 sm:h-10 rounded-xl bg-ai-gradient flex items-center justify-center shadow-neural-glow mb-2 sm:mb-0">
+              <img src="/GenCoachImg.png" alt="GEN-COACH Logo" className="w-12 h-12 sm:w-8 sm:h-8" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-foreground">Welcome to GEN-COACH, {userName}!</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Welcome to GEN-COACH, {userName}!</h1>
               <p className="text-muted-foreground">AI-powered learning made simple with GEN-COACH</p>
             </div>
           </div>
@@ -200,9 +200,25 @@ export function HomeScreen() {
                     <CardTitle className="text-lg font-semibold text-card-foreground line-clamp-2">
                       {course.title}
                     </CardTitle>
-                    <Badge variant="secondary" className="ml-2">
-                      {course.modules?.length || 0} modules
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="ml-2">
+                        {course.modules?.length || 0} modules
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm(`Delete course "${course.title}"? This cannot be undone.`)) {
+                            deleteCourse(course.id);
+                          }
+                        }}
+                        title="Delete course"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
                   {course.topic && (
                     <p className="text-sm text-muted-foreground line-clamp-1">
@@ -257,6 +273,15 @@ export function HomeScreen() {
         size="icon"
       >
         <Plus className="w-6 h-6 text-white" />
+      </Button>
+
+      {/* Mobile Voice Chat Button */}
+      <Button
+        onClick={() => setShowVoiceChat(true)}
+        className="sm:hidden fixed bottom-8 left-8 w-14 h-14 rounded-full bg-primary hover:shadow-neural-glow shadow-floating transition-all duration-300 hover:scale-110"
+        size="icon"
+      >
+        <Mic className="w-6 h-6 text-white" />
       </Button>
 
       {/* Course Creation Overlay */}
