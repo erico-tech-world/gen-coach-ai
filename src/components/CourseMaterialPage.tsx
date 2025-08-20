@@ -404,23 +404,13 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
                   variant="ghost"
                   size="icon"
                   className="absolute inset-0 w-full h-full bg-black/20 hover:bg-black/30 transition-colors"
-<<<<<<< HEAD
                   onClick={handleListen}
                 >
-                  {isPlaying ? (
+                  {isTTSPlaying ? (
                     <Pause className="w-12 h-12 text-white" />
                   ) : (
                     <Play className="w-12 h-12 text-white" />
                   )}
-=======
-                  onClick={handlePlayPause}
-                                  >
-                    {isTTSPlaying ? (
-                      <Pause className="w-12 h-12 text-white" />
-                    ) : (
-                      <Play className="w-12 h-12 text-white" />
-                    )}
->>>>>>> faa2b6721374322d48df3745336e930eb429e02a
                 </Button>
               </div>
             </Card>

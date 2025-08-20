@@ -67,7 +67,6 @@ export function useTextToSpeech() {
         throw new Error(response.error.message || 'TTS generation failed');
       }
 
-<<<<<<< HEAD
       // Expect success flag from edge function
       if (!response.data || response.data.success !== true) {
         const details = response.data?.details || 'Unknown error';
@@ -96,21 +95,6 @@ export function useTextToSpeech() {
         variant: "destructive"
       });
       return null;
-=======
-      // Check if we should use browser fallback
-      if (response.data?.useBrowserFallback) {
-        console.log('Using browser speech synthesis fallback');
-        return 'BROWSER_FALLBACK';
-      }
-
-      return response.data?.audioContent || null;
-    } catch (error) {
-      console.error('TTS generation error:', error);
-      
-      // If there's any error, suggest browser fallback
-      console.log('TTS service failed, using browser fallback');
-      return 'BROWSER_FALLBACK';
->>>>>>> faa2b6721374322d48df3745336e930eb429e02a
     } finally {
       setIsGenerating(false);
     }
@@ -219,25 +203,12 @@ export function useTextToSpeech() {
   };
 
   const speak = async (text: string) => {
-<<<<<<< HEAD
     const clean = sanitizeForSpeech(text);
     if (!clean) return;
     const chunks = splitIntoChunks(clean);
     for (const chunk of chunks) {
       const audioContent = await generateSpeech(chunk);
       if (!audioContent) break;
-=======
-    // Limit text length for better performance
-    const textToSpeak = text.length > 1000 ? text.substring(0, 1000) + "..." : text;
-    
-    const audioContent = await generateSpeech(textToSpeak);
-    
-    if (audioContent === 'BROWSER_FALLBACK') {
-      // Use browser's built-in speech synthesis
-      useBrowserSpeech(textToSpeak);
-    } else if (audioContent) {
-      // Use external TTS service audio
->>>>>>> faa2b6721374322d48df3745336e930eb429e02a
       await playAudio(audioContent);
     } else {
       // Fallback to browser speech if no audio content
@@ -245,7 +216,7 @@ export function useTextToSpeech() {
         title: "Using Browser Speech",
         description: "External TTS service unavailable, using browser speech synthesis.",
       });
-      useBrowserSpeech(textToSpeak);
+      useBrowserSpeech(text);
     }
   };
 
