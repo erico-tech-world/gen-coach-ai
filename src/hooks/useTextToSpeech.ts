@@ -206,11 +206,16 @@ export function useTextToSpeech() {
     const clean = sanitizeForSpeech(text);
     if (!clean) return;
     const chunks = splitIntoChunks(clean);
+    let playedAny = false;
     for (const chunk of chunks) {
       const audioContent = await generateSpeech(chunk);
-      if (!audioContent) break;
+      if (!audioContent) {
+        break;
+      }
       await playAudio(audioContent);
-    } else {
+      playedAny = true;
+    }
+    if (!playedAny) {
       // Fallback to browser speech if no audio content
       toast({
         title: "Using Browser Speech",
