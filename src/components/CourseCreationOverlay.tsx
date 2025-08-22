@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCourses } from "@/hooks/useCourses";
 import { useAI } from "@/hooks/useAI";
 import { useProfile } from "@/hooks/useProfile";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VoiceInput } from "@/components/VoiceInput";
 import { DocumentUpload } from "@/components/DocumentUpload";
 
@@ -22,8 +23,14 @@ export function CourseCreationOverlay({ isOpen, onClose }: CourseCreationOverlay
   const [documentName, setDocumentName] = useState("");
   const { createCourse } = useCourses();
   const { generateCourse, isGenerating } = useAI();
-  const { userName } = useProfile();
+  const { userName, languagePreference, updateProfile } = useProfile();
   const { toast } = useToast();
+  const [language, setLanguage] = useState<string>("en");
+
+  // initialize from profile
+  if (language === "en" && languagePreference && languagePreference !== "en") {
+    setLanguage(languagePreference);
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +44,7 @@ export function CourseCreationOverlay({ isOpen, onClose }: CourseCreationOverlay
         : input.trim();
       
       console.log('Starting course generation...');
-      const result = await generateCourse(enhancedPrompt, userName);
+      const result = await generateCourse(enhancedPrompt, userName, language);
       
       if (result) {
         if (result.courseId) {
@@ -65,6 +72,8 @@ export function CourseCreationOverlay({ isOpen, onClose }: CourseCreationOverlay
         setInput("");
         setDocumentContent("");
         setDocumentName("");
+        // persist language preference to profile (best-effort)
+        try { await updateProfile({ language_preference: language }); } catch {}
         // Auto-refresh course list by refetching and closing overlay
         await new Promise((r) => setTimeout(r, 300));
         window.location.reload();
@@ -143,6 +152,20 @@ export function CourseCreationOverlay({ isOpen, onClose }: CourseCreationOverlay
           <DocumentUpload onDocumentProcessed={handleDocumentProcessed} />
           
           <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Language</label>
+              <Select value={language} onValueChange={setLanguage}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="en">English</SelectItem>
+                  <SelectItem value="fr">French</SelectItem>
+                  <SelectItem value="pcm">Pidgin</SelectItem>
+                  <SelectItem value="ig">Igbo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="relative">
               <FileText className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 transform -translate-y-1/2" />
               <Input

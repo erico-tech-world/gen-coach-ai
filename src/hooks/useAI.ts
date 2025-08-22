@@ -24,7 +24,7 @@ export function useAI() {
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
 
-  const generateCourse = async (prompt: string, userName?: string): Promise<CourseGenerationResult | null> => {
+  const generateCourse = async (prompt: string, userName?: string, language: string = 'en'): Promise<CourseGenerationResult | null> => {
     setIsGenerating(true);
     
     try {
@@ -40,7 +40,8 @@ export function useAI() {
         body: {
           prompt,
           userId: user.id,
-          userName
+          userName,
+          language
         }
       });
 

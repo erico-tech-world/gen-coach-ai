@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Brain, Mail, Lock, Loader2, Sparkles } from "lucide-react";
+import { Brain, Mail, Lock, Loader2, Sparkles, Chrome } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface AuthPageProps {
@@ -16,7 +16,38 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isOAuthLoading, setIsOAuthLoading] = useState(false);
   const { toast } = useToast();
+
+  const handleGoogleSignIn = async () => {
+    setIsOAuthLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.hostname === 'localhost' 
+            ? `${window.location.origin}/` 
+            : 'https://gen-coach-ai.vercel.app/'
+        }
+      });
+
+      if (error) {
+        toast({
+          title: "Google Sign In Error",
+          description: error.message,
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred during Google sign in.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsOAuthLoading(false);
+    }
+  };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,9 +82,11 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
         });
       } else {
         toast({
-          title: "Success!",
-          description: "Please check your email to confirm your account.",
+          title: "Verify your email",
+          description: "We sent a verification link. Please check your inbox.",
         });
+        // Redirect to verify page (frontend route to be handled)
+        window.location.href = "/verify-email";
       }
     } catch (error) {
       console.error('Unexpected signup error:', error);
@@ -104,174 +137,148 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-ai-gradient rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-neural-glow">
-            <img src="/GenCoachImg.png" alt="GEN-COACH Logo" className="w-12 h-12" />
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center space-y-2">
+          <div className="w-16 h-16 rounded-full bg-ai-gradient mx-auto flex items-center justify-center shadow-neural-glow">
+            <Brain className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">GEN-COACH</h1>
-          <p className="text-muted-foreground">Create personalized courses with artificial intelligence</p>
-        </div>
+          <CardTitle className="text-2xl font-bold">Welcome to GEN-COACH</CardTitle>
+          <p className="text-muted-foreground">AI-powered learning made simple</p>
+        </CardHeader>
+        
+        <CardContent>
+          <Tabs defaultValue="signin" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="signin">Sign In</TabsTrigger>
+              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            </TabsList>
+            
+            {/* Google OAuth Button */}
+            <div className="mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={handleGoogleSignIn}
+                disabled={isOAuthLoading}
+              >
+                {isOAuthLoading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Chrome className="w-4 h-4 mr-2" />
+                )}
+                Continue with Google
+              </Button>
+            </div>
 
-        {/* Auth Form */}
-        <Card className="border-border shadow-floating">
-          <CardHeader>
-            <CardTitle className="text-center text-xl">Get Started</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="signin" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="signin">Sign In</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="signin">
-                <form onSubmit={handleSignIn} className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Email</label>
-                    <div className="relative">
-                      <Mail className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 transform -translate-y-1/2" />
-                      <Input
-                        type="email"
-                        placeholder="your@email.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="pl-10"
-                        disabled={isLoading}
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Password</label>
-                    <div className="relative">
-                      <Lock className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 transform -translate-y-1/2" />
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="pl-10"
-                        disabled={isLoading}
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <Button
-                    type="submit"
-                    className="w-full bg-ai-gradient hover:shadow-neural-glow transition-all duration-300"
-                    disabled={isLoading || !email || !password}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Signing In...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Sign In
-                      </>
-                    )}
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Or continue with email
+                </span>
+              </div>
+            </div>
+            
+            <TabsContent value="signin" className="space-y-4">
+              <form onSubmit={handleSignIn} className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="signin-email" className="text-sm font-medium">
+                    Email
+                  </label>
+                  <Input
+                    id="signin-email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="signin-password" className="text-sm font-medium">
+                    Password
+                  </label>
+                  <Input
+                    id="signin-password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-4">
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
+                    Sign In
                   </Button>
-                </form>
-              </TabsContent>
-              
-              <TabsContent value="signup">
-                <form onSubmit={handleSignUp} className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Name</label>
-                    <div className="relative">
-                      <Input
-                        type="text"
-                        placeholder="Your full name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        disabled={isLoading}
-                        required
-                      />
-                    </div>
+                  <div className="text-center">
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="text-sm"
+                      onClick={() => window.location.href = '/forgot-password'}
+                    >
+                      Forgot your password?
+                    </Button>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Email</label>
-                    <div className="relative">
-                      <Mail className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 transform -translate-y-1/2" />
-                      <Input
-                        type="email"
-                        placeholder="your@email.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="pl-10"
-                        disabled={isLoading}
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Password</label>
-                    <div className="relative">
-                      <Lock className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 transform -translate-y-1/2" />
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="pl-10"
-                        disabled={isLoading}
-                        required
-                        minLength={6}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">Password must be at least 6 characters</p>
-                  </div>
-                  
-                  <Button
-                    type="submit"
-                    className="w-full bg-ai-gradient hover:shadow-neural-glow transition-all duration-300"
-                    disabled={isLoading || !email || !password || !name}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Creating Account...
-                      </>
-                    ) : (
-                      <>
-                        <Brain className="w-4 h-4 mr-2" />
-                        Create Account
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-
-        {/* Features */}
-        <div className="mt-8 text-center">
-          <p className="text-sm text-muted-foreground mb-4">What you'll get:</p>
-          <div className="grid grid-cols-1 gap-2 text-sm">
-            <div className="flex items-center justify-center gap-2 text-accent">
-              <Sparkles className="w-3 h-3" />
-              AI-generated personalized courses
-            </div>
-            <div className="flex items-center justify-center gap-2 text-accent">
-              <Brain className="w-3 h-3" />
-              Interactive learning modules
-            </div>
-            <div className="flex items-center justify-center gap-2 text-accent">
-              <Mail className="w-3 h-3" />
-              Voice and text input support
-            </div>
-          </div>
-        </div>
-      </div>
+                </div>
+              </form>
+            </TabsContent>
+            
+            <TabsContent value="signup" className="space-y-4">
+              <form onSubmit={handleSignUp} className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="signup-name" className="text-sm font-medium">
+                    Full Name
+                  </label>
+                  <Input
+                    id="signup-name"
+                    type="text"
+                    placeholder="Enter your full name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="signup-email" className="text-sm font-medium">
+                    Email
+                  </label>
+                  <Input
+                    id="signup-email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="signup-password" className="text-sm font-medium">
+                    Password
+                  </label>
+                  <Input
+                    id="signup-password"
+                    type="password"
+                    placeholder="Create a password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                  Create Account
+                </Button>
+              </form>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }

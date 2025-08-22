@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Plus, BookOpen, Clock, Users, LogOut, Mic, ArrowLeft, Trash2 } from "lucide-react";
+import { Plus, BookOpen, Clock, Users, LogOut, Mic, ArrowLeft, Trash2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CourseCreationOverlay } from "./CourseCreationOverlay";
 import { CourseMaterialPage } from "./CourseMaterialPage";
 import { RealtimeVoiceChat } from "./RealtimeVoiceChat";
+import { SettingsOverlay } from "./SettingsOverlay";
 import { useCourses, Course } from "@/hooks/useCourses";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -15,6 +16,7 @@ export function HomeScreen() {
   const [showCreationOverlay, setShowCreationOverlay] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [showVoiceChat, setShowVoiceChat] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const { courses, isLoading, createCourse, deleteCourse } = useCourses();
   const { signOut, user } = useAuth();
   const { userName } = useProfile();
@@ -151,6 +153,14 @@ export function HomeScreen() {
               >
                 <Mic className="w-4 h-4 mr-2" />
                 AI Voice Chat
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowSettings(true)}
+                className="hidden sm:flex"
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Settings
               </Button>
               <span className="text-sm text-muted-foreground hidden sm:block">
                 {user?.email}
@@ -289,6 +299,14 @@ export function HomeScreen() {
         <CourseCreationOverlay
           isOpen={showCreationOverlay}
           onClose={() => setShowCreationOverlay(false)}
+        />
+      )}
+
+      {/* Settings Overlay */}
+      {showSettings && (
+        <SettingsOverlay
+          isOpen={showSettings}
+          onClose={() => setShowSettings(false)}
         />
       )}
     </div>

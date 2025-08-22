@@ -74,7 +74,7 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, userId, userName } = requestBody || {};
+    const { prompt, userId, userName, language } = requestBody || {};
 
     if (!prompt || !userId) {
       console.error('Missing required fields:', { hasPrompt: !!prompt, hasUserId: !!userId });
@@ -132,7 +132,7 @@ serve(async (req) => {
           },
           { 
             role: 'user', 
-            content: `Create a comprehensive course about: ${prompt}\n\nPlease ensure the course is:\n- Well-structured with clear learning progression\n- Practical and applicable\n- Engaging and educational\n- Suitable for learners at various levels\n- Contains real-world examples and applications`
+            content: `Create a comprehensive course about: ${prompt}\n\nPlease ensure the course is:\n- Well-structured with clear learning progression\n- Practical and applicable\n- Engaging and educational\n- Suitable for learners at various levels\n- Contains real-world examples and applications\n\nOutput language: ${language || 'en'}`
           }
         ],
         temperature: 0.7,
@@ -168,8 +168,34 @@ serve(async (req) => {
       });
     }
     
-    const generatedContent = data.choices[0].message.content;
+    let generatedContent = data.choices[0].message.content;
     console.log('Generated content length:', generatedContent.length);
+
+    // Optional server-side translation via translate-text if requested and language != en
+    try {
+      const targetLang = (language || 'en').toLowerCase();
+      if (targetLang !== 'en') {
+        console.log('Translating generated content to', targetLang);
+        const tr = await fetch(`${supabaseUrl}/functions/v1/translate-text`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`
+          },
+          body: JSON.stringify({ text: generatedContent, target_language: targetLang })
+        });
+        if (tr.ok) {
+          const trData = await tr.json();
+          if (trData?.success && trData?.text) {
+            generatedContent = trData.text;
+          }
+        } else {
+          console.log('Translation call failed with status', tr.status);
+        }
+      }
+    } catch (e) {
+      console.log('Translation pipeline error:', e?.message);
+    }
 
     // Parse the generated content with improved regex
     const titleMatch = generatedContent.match(/<TITLE_HEADING>(.*?)<\/TITLE_HEADING>/s);
@@ -344,6 +370,7 @@ serve(async (req) => {
       modules,
       youtubeLinks,
       wikipediaData,
+      language: language || 'en',
       success: true
     };
 
