@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, BookOpen, Clock, Users, LogOut, Mic, ArrowLeft, Trash2, Settings } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, BookOpen, Clock, Users, LogOut, Mic, ArrowLeft, Trash2, Settings, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,15 +11,29 @@ import { useCourses, Course } from "@/hooks/useCourses";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 
 export function HomeScreen() {
   const [showCreationOverlay, setShowCreationOverlay] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [showVoiceChat, setShowVoiceChat] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [deletingCourseId, setDeletingCourseId] = useState<string | null>(null);
   const { courses, isLoading, createCourse, deleteCourse } = useCourses();
   const { signOut, user } = useAuth();
   const { userName } = useProfile();
+  const { toast } = useToast();
+
+  // Handle voice chat session termination when leaving the page
+  useEffect(() => {
+    return () => {
+      // Cleanup function to terminate voice chat session when component unmounts
+      if (showVoiceChat) {
+        // This will be handled by the RealtimeVoiceChat component's cleanup
+        setShowVoiceChat(false);
+      }
+    };
+  }, [showVoiceChat]);
 
   const handleCourseCreated = async (courseData: {
     title: string;
@@ -44,21 +58,84 @@ export function HomeScreen() {
     }
   };
 
+  const handleDeleteCourse = async (courseId: string, courseTitle: string) => {
+    if (!confirm(`Are you sure you want to delete "${courseTitle}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingCourseId(courseId);
+    try {
+      await deleteCourse(courseId);
+      toast({
+        title: "Course Deleted",
+        description: `"${courseTitle}" has been permanently deleted.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Delete Failed",
+        description: "Failed to delete course. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setDeletingCourseId(null);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      // Force redirect to auth page
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Sign out error:', error);
+      // Force redirect anyway
+      window.location.href = '/';
+    }
+  };
+
+  const handleVoiceChatToggle = (show: boolean) => {
+    setShowVoiceChat(show);
+    // Reset other states when switching to voice chat
+    if (show) {
+      setSelectedCourse(null);
+      setShowCreationOverlay(false);
+      setShowSettings(false);
+    }
+  };
+
+  const handleCourseSelect = (course: Course) => {
+    setSelectedCourse(course);
+    // Reset other states when selecting a course
+    setShowVoiceChat(false);
+    setShowCreationOverlay(false);
+    setShowSettings(false);
+  };
+
+  const handleBackToHome = () => {
+    setSelectedCourse(null);
+    setShowVoiceChat(false);
+    setShowCreationOverlay(false);
+    setShowSettings(false);
+  };
+
   if (showVoiceChat) {
     return (
-      <div className="min-h-screen bg-background p-6">
+      <div className="min-h-screen bg-background p-4 sm:p-6">
         <div className="flex items-center gap-4 mb-6">
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setShowVoiceChat(false)}
+            onClick={() => handleVoiceChatToggle(false)}
             className="h-10 w-10"
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-2xl font-bold">AI Voice Chat</h1>
+          <h1 className="text-xl sm:text-2xl font-bold">AI Voice Chat</h1>
         </div>
-        <RealtimeVoiceChat />
+        <RealtimeVoiceChat onUnmount={() => {
+          // Only close voice chat when component unmounts, not on every interaction
+          console.log('Voice chat component unmounting');
+        }} />
       </div>
     );
   }
@@ -68,42 +145,50 @@ export function HomeScreen() {
       <CourseMaterialPage
         courseId={selectedCourse.id}
         courseTitle={selectedCourse.title}
-        onBack={() => setSelectedCourse(null)}
+        onBack={handleBackToHome}
       />
     );
   }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background p-6">
-        <div className="max-w-6xl mx-auto mb-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Skeleton className="w-10 h-10 rounded-xl" />
+      <div className="min-h-screen bg-background p-4 sm:p-6">
+        <div className="max-w-6xl mx-auto">
+          {/* Header Skeleton */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
               <div className="space-y-2">
-                <Skeleton className="h-8 w-48" />
-                <Skeleton className="h-4 w-64" />
+              <Skeleton className="h-8 w-64" />
+              <Skeleton className="h-4 w-48" />
               </div>
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-10 w-32" />
+              <Skeleton className="h-10 w-10" />
             </div>
           </div>
+
+          {/* Stats Skeleton */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {[...Array(4)].map((_, i) => (
+              <Card key={i}>
+                <CardContent className="p-6">
+                  <Skeleton className="h-8 w-16 mb-2" />
+                  <Skeleton className="h-4 w-24" />
+                </CardContent>
+              </Card>
+            ))}
         </div>
         
-        <div className="max-w-6xl mx-auto">
+          {/* Courses Grid Skeleton */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Card key={i} className="border-border bg-card">
-                <CardHeader>
-                  <Skeleton className="h-6 w-32" />
-                  <Skeleton className="h-4 w-24" />
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <Skeleton className="h-2 w-full" />
-                    <div className="flex gap-4">
-                      <Skeleton className="h-4 w-16" />
-                      <Skeleton className="h-4 w-16" />
-                    </div>
-                    <Skeleton className="h-9 w-full" />
+            {[...Array(6)].map((_, i) => (
+              <Card key={i} className="h-48">
+                <CardContent className="p-6">
+                  <Skeleton className="h-6 w-3/4 mb-4" />
+                  <Skeleton className="h-4 w-full mb-2" />
+                  <Skeleton className="h-4 w-2/3 mb-4" />
+                  <div className="flex justify-between items-center">
+                    <Skeleton className="h-8 w-20" />
+                    <Skeleton className="h-8 w-8" />
                   </div>
                 </CardContent>
               </Card>
@@ -115,23 +200,67 @@ export function HomeScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="min-h-screen bg-background p-4 sm:p-6">
+      <div className="max-w-6xl mx-auto">
       {/* Header */}
-      <div className="max-w-6xl mx-auto mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-3 text-center sm:text-left">
-            <div className="w-16 h-16 sm:w-10 sm:h-10 rounded-xl bg-ai-gradient flex items-center justify-center shadow-neural-glow mb-2 sm:mb-0">
-              <img src="/GenCoachImg.png" alt="GEN-COACH Logo" className="w-12 h-12 sm:w-8 sm:h-8" />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Welcome to GEN-COACH, {userName}!</h1>
-              <p className="text-muted-foreground">AI-powered learning made simple with GEN-COACH</p>
-            </div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+          <div className="space-y-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
+              Welcome back, {userName}!
+            </h1>
+            <p className="text-muted-foreground">
+              Continue your learning journey with AI-powered courses
+            </p>
           </div>
           
-          <div className="flex items-center gap-4">
-            {/* Stats */}
-            <div className="hidden md:flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => handleVoiceChatToggle(true)}
+              className="flex"
+            >
+              <Mic className="w-4 h-4 mr-2" />
+              AI Voice Chat
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowSettings(true)}
+              className="h-10 w-10"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleSignOut}
+              className="h-10 w-10"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Mobile Stats Cards */}
+        <div className="grid grid-cols-2 gap-4 mb-6 sm:hidden">
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-primary">{courses.length}</div>
+              <div className="text-sm text-muted-foreground">Total Courses</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-accent">
+                {courses.filter(course => course.progress === 100).length}
+              </div>
+              <div className="text-sm text-muted-foreground">Completed</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Desktop Stats */}
+        <div className="hidden sm:flex items-center gap-6 mb-8">
               <div className="text-center">
                 <div className="text-2xl font-bold text-primary">{courses.length}</div>
                 <div className="text-sm text-muted-foreground">Total Courses</div>
@@ -144,171 +273,96 @@ export function HomeScreen() {
               </div>
             </div>
             
-            {/* User Menu */}
-            <div className="flex items-center gap-2">
+        {/* Create Course Button */}
+        <div className="mb-8">
               <Button
-                variant="outline"
-                onClick={() => setShowVoiceChat(true)}
-                className="hidden sm:flex"
-              >
-                <Mic className="w-4 h-4 mr-2" />
-                AI Voice Chat
+            onClick={() => setShowCreationOverlay(true)}
+            className="w-full sm:w-auto"
+            size="lg"
+          >
+            <Plus className="w-5 h-5 mr-2" />
+            Create New Course
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => setShowSettings(true)}
-                className="hidden sm:flex"
-              >
-                <Settings className="w-4 h-4 mr-2" />
-                Settings
-              </Button>
-              <span className="text-sm text-muted-foreground hidden sm:block">
-                {user?.email}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={signOut}
-                className="h-9 w-9"
-              >
-                <LogOut className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Courses Grid */}
-      <div className="max-w-6xl mx-auto">
-        {courses.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="w-20 h-20 rounded-full bg-ai-gradient mx-auto mb-6 flex items-center justify-center shadow-neural-glow">
-              <BookOpen className="w-10 h-10 text-white" />
-            </div>
-            <h3 className="text-xl font-semibold text-foreground mb-2">No courses yet</h3>
-            <p className="text-muted-foreground mb-8">
-              Create your first AI-generated course to get started
-            </p>
-            <Button 
-              onClick={() => setShowCreationOverlay(true)}
-              className="bg-ai-gradient hover:shadow-neural-glow transition-all duration-300"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Create Your First Course
-            </Button>
-          </div>
-        ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {courses.map((course) => (
-              <Card 
-                key={course.id} 
-                className="course-card hover:shadow-course-card transition-all duration-300 border-border bg-card cursor-pointer"
-                onClick={() => setSelectedCourse(course)}
-              >
+            <Card key={course.id} className="group hover:shadow-lg transition-shadow">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
-                    <CardTitle className="text-lg font-semibold text-card-foreground line-clamp-2">
+                  <CardTitle className="text-lg font-semibold line-clamp-2">
                       {course.title}
                     </CardTitle>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="ml-2">
-                        {course.modules?.length || 0} modules
-                      </Badge>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm(`Delete course "${course.title}"? This cannot be undone.`)) {
-                            deleteCourse(course.id);
-                          }
-                        }}
-                        title="Delete course"
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
+                    onClick={() => handleDeleteCourse(course.id, course.title)}
+                    disabled={deletingCourseId === course.id}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+                  >
+                    {deletingCourseId === course.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
                       </Button>
                     </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <BookOpen className="w-4 h-4" />
+                    <span>{course.modules?.length || 0} modules</span>
                   </div>
-                  {course.topic && (
-                    <p className="text-sm text-muted-foreground line-clamp-1">
-                      {course.topic}
-                    </p>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {/* Progress Bar */}
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div 
-                        className="bg-ai-gradient h-2 rounded-full transition-all duration-300" 
-                        style={{ width: `${course.progress || 0}%` }}
-                      />
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Clock className="w-4 h-4" />
+                    <span>{course.schedule || 'Self-paced'}</span>
                     </div>
-                    
-                    {/* Course Info */}
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        <span>{course.schedule}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Users className="w-3 h-3" />
-                        <span>AI Tutor</span>
-                      </div>
-                    </div>
-                    
+                  <div className="flex items-center justify-between">
+                    <Badge variant="secondary" className="text-xs">
+                      {course.progress}% Complete
+                    </Badge>
                     <Button 
                       variant="outline" 
-                      className="w-full hover:bg-primary/10 hover:border-primary transition-all duration-300"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedCourse(course);
-                      }}
+                      size="sm"
+                      onClick={() => handleCourseSelect(course)}
                     >
-                      {course.progress === 0 ? 'Start Learning' : 'Continue Learning'}
+                      Continue
                     </Button>
+                  </div>
                   </div>
                 </CardContent>
               </Card>
             ))}
+        </div>
+
+        {courses.length === 0 && !isLoading && (
+          <div className="text-center py-12">
+            <BookOpen className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-lg font-semibold mb-2">No courses yet</h3>
+            <p className="text-muted-foreground mb-4">
+              Create your first AI-powered course to start learning
+            </p>
+            <Button onClick={() => setShowCreationOverlay(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create Your First Course
+            </Button>
           </div>
         )}
       </div>
 
-      {/* Floating Add Button */}
-      <Button
-        onClick={() => setShowCreationOverlay(true)}
-        className="fixed bottom-8 right-8 w-14 h-14 rounded-full bg-ai-gradient hover:shadow-neural-glow shadow-floating transition-all duration-300 hover:scale-110"
-        size="icon"
-      >
-        <Plus className="w-6 h-6 text-white" />
-      </Button>
-
-      {/* Mobile Voice Chat Button */}
-      <Button
-        onClick={() => setShowVoiceChat(true)}
-        className="sm:hidden fixed bottom-8 left-8 w-14 h-14 rounded-full bg-primary hover:shadow-neural-glow shadow-floating transition-all duration-300 hover:scale-110"
-        size="icon"
-      >
-        <Mic className="w-6 h-6 text-white" />
-      </Button>
-
-      {/* Course Creation Overlay */}
-      {showCreationOverlay && (
+      {/* Overlays */}
         <CourseCreationOverlay
           isOpen={showCreationOverlay}
           onClose={() => setShowCreationOverlay(false)}
-        />
-      )}
+        onCourseCreated={handleCourseCreated}
+      />
 
-      {/* Settings Overlay */}
-      {showSettings && (
-        <SettingsOverlay
-          isOpen={showSettings}
-          onClose={() => setShowSettings(false)}
-        />
-      )}
+      <SettingsOverlay
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
     </div>
   );
 }

@@ -36,7 +36,7 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
 
 # Required for database operations
 SUPABASE_URL=your_supabase_url
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SERVICE_ROLE_KEY=your_service_role_key
 
 # Optional for YouTube integration
 YOUTUBE_API_KEY=your_youtube_api_key_here

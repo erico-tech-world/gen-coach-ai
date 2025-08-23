@@ -33,7 +33,7 @@ serve(async (req) => {
     // @ts-expect-error Deno runtime
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     // @ts-expect-error Deno runtime
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseServiceKey = Deno.env.get("SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !supabaseServiceKey) {
       return new Response(JSON.stringify({ success: false, error: "Server configuration missing" }), {

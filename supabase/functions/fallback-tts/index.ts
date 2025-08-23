@@ -20,7 +20,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { text, language = 'en-US' } = body || {};
+    const { text, language = 'en' } = body || {};
 
     // Validate input
     if (!text || typeof text !== "string") {
@@ -45,49 +45,47 @@ serve(async (req) => {
     }
 
     // @ts-expect-error Deno runtime
-    const groqApiKey = Deno.env.get("GROQ_API_KEY");
-    if (!groqApiKey) {
-      return new Response(JSON.stringify({ success: false, error: "GROQ_API_KEY not configured" }), {
+    const huggingfaceToken = Deno.env.get("HUGGINGFACE_API_KEY");
+    if (!huggingfaceToken) {
+      return new Response(JSON.stringify({ success: false, error: "HUGGINGFACE_API_KEY not configured" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Map language codes to Groq TTS voices
-    const getGroqVoice = (lang: string): string => {
-      const voiceMap: Record<string, string> = {
-        'en-US': 'Calum-PlayAI',
-        'en-GB': 'Calum-PlayAI',
-        'fr-FR': 'Calum-PlayAI', // Groq may not support French, fallback to English
-        'fr-CA': 'Calum-PlayAI',
+    // Map language codes to Hugging Face TTS models
+    const getTTSModel = (lang: string): string => {
+      const modelMap: Record<string, string> = {
+        'en': 'facebook/fastspeech2-en-ljspeech',
+        'fr': 'facebook/fastspeech2-fr-mai',
+        'pcm': 'facebook/fastspeech2-en-ljspeech', // Pidgin fallback to English
+        'ig': 'facebook/fastspeech2-en-ljspeech',  // Igbo fallback to English
       };
-      return voiceMap[lang] || 'Calum-PlayAI';
+      return modelMap[lang] || 'facebook/fastspeech2-en-ljspeech';
     };
 
-    const voice = getGroqVoice(language);
-    console.log(`Generating TTS for language: ${language}, voice: ${voice}`);
+    const model = getTTSModel(language);
+    console.log(`Generating fallback TTS for language: ${language}, model: ${model}`);
 
-    const response = await fetch("https://api.groq.com/openai/v1/audio/speech", {
+    // Use Hugging Face Inference API for TTS
+    const response = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${groqApiKey}`,
+        "Authorization": `Bearer ${huggingfaceToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "playai-tts",
-        voice: voice,
-        input: text,
-        response_format: "wav",
-        speed: 1.0,
+        inputs: text,
+        options: { wait_for_model: true }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Groq TTS API error:', response.status, errorText);
+      console.error('Hugging Face TTS API error:', response.status, errorText);
       return new Response(JSON.stringify({ 
         success: false, 
-        error: `Groq TTS API error: ${errorText}`,
+        error: `Hugging Face TTS API error: ${errorText}`,
         details: `Status: ${response.status}`
       }), {
         status: 200,
@@ -118,17 +116,17 @@ serve(async (req) => {
       audioContent,
       contentType: "audio/wav",
       language: language,
-      voice: voice
+      model: model
     }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (error) {
-    console.error('TTS function error:', error);
+    console.error('Fallback TTS function error:', error);
     return new Response(JSON.stringify({ 
       success: false, 
-      error: "TTS processing failed",
+      error: "Fallback TTS processing failed",
       details: error.message 
     }), {
       status: 200,

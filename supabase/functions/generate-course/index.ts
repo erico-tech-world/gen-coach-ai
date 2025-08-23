@@ -8,6 +8,10 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 };
 
+// Payload size limits
+const MAX_PAYLOAD_SIZE = 2 * 1024 * 1024; // 2MB maximum payload size (increased from 1MB)
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB maximum file size
+
 interface CourseModule {
   id: string;
   title: string;
@@ -49,6 +53,18 @@ serve(async (req) => {
     const bodyText = await req.text();
     console.log('Received request body length:', bodyText?.length || 0);
     
+    // Validate payload size
+    if (bodyText && bodyText.length > MAX_PAYLOAD_SIZE) {
+      console.error('Payload too large:', bodyText.length, 'bytes (max:', MAX_PAYLOAD_SIZE, 'bytes)');
+      return new Response(JSON.stringify({ 
+        error: 'Payload too large',
+        details: `Request body size (${Math.round(bodyText.length / 1024)}KB) exceeds maximum allowed size (${MAX_PAYLOAD_SIZE / 1024}KB). Please use smaller files or upload large documents to cloud storage.`
+      }), {
+        status: 413, // Payload Too Large
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
     if (!bodyText || bodyText.trim() === '') {
       console.log('Empty request body received');
       return new Response(JSON.stringify({ 
@@ -62,6 +78,9 @@ serve(async (req) => {
     
     requestBody = JSON.parse(bodyText);
     console.log('Parsed request - prompt length:', requestBody?.prompt?.length || 0);
+    console.log('Request ID:', requestBody?.requestId || 'none');
+    console.log('File URL provided:', !!requestBody?.fileUrl);
+    console.log('File size:', requestBody?.fileSize || 'not provided');
   } catch (parseError) {
     console.error('JSON parsing error:', parseError);
     return new Response(JSON.stringify({ 
@@ -74,304 +93,403 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, userId, userName, language } = requestBody || {};
+    const { prompt, userId, userName, language, requestId, fileUrl, fileSize } = requestBody || {};
 
+    // Validate required fields
     if (!prompt || !userId) {
-      console.error('Missing required fields:', { hasPrompt: !!prompt, hasUserId: !!userId });
       return new Response(JSON.stringify({ 
         error: 'Missing required fields',
-        details: 'Prompt and userId are required'
+        details: 'prompt and userId are required'
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // @ts-expect-error Deno global is available at runtime
-    const openrouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
-    // @ts-expect-error Deno global is available at runtime
+    // Validate file size if provided
+    if (fileSize && fileSize > MAX_FILE_SIZE) {
+      return new Response(JSON.stringify({ 
+        error: 'File too large',
+        details: `File size (${Math.round(fileSize / 1024)}KB) exceeds maximum allowed size (${MAX_FILE_SIZE / 1024}KB)`
+      }), {
+        status: 413,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // @ts-expect-error Deno runtime
+    const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
+    // @ts-expect-error Deno runtime
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    // @ts-expect-error Deno global is available at runtime
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    // @ts-expect-error Deno global is available at runtime
-    const youtubeApiKey = Deno.env.get('YOUTUBE_API_KEY');
+    // @ts-expect-error Deno runtime
+    const supabaseServiceKey = Deno.env.get('SERVICE_ROLE_KEY');
 
-    console.log('Environment check:', {
-      hasOpenRouterKey: !!openrouterApiKey,
-      hasSupabaseUrl: !!supabaseUrl,
-      hasServiceKey: !!supabaseServiceKey,
-      hasYouTubeKey: !!youtubeApiKey
-    });
-
-    if (!openrouterApiKey) {
-      console.error('OpenRouter API key not configured');
+    // Validate environment variables
+    if (!openRouterApiKey) {
+      console.error('Missing OPENROUTER_API_KEY environment variable');
       return new Response(JSON.stringify({ 
         error: 'OpenRouter API key not configured',
-        details: 'Server configuration issue - API key missing'
+        details: 'Please configure OPENROUTER_API_KEY environment variable'
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('Starting course generation with OpenRouter DeepSeek model...');
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Missing Supabase environment variables:', { 
+        hasUrl: !!supabaseUrl, 
+        hasServiceKey: !!supabaseServiceKey 
+      });
+      return new Response(JSON.stringify({ 
+        error: 'Supabase configuration incomplete',
+        details: 'Missing SUPABASE_URL or SERVICE_ROLE_KEY environment variables'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Enhanced idempotency check - check for existing course with same request ID
+    let idempotencyCheckPassed = true;
+    let existingCourseId = null;
     
-    // Generate course content using OpenRouter DeepSeek model
-    const openrouterResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    if (requestId) {
+      try {
+        console.log('Performing idempotency check for request ID:', requestId);
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        
+        // Check if a course with this request ID already exists
+        const { data: existingCourse, error: checkError } = await supabase
+          .from('courses')
+          .select('id, title, created_at')
+          .eq('user_id', userId)
+          .eq('additional_details', `AI-generated course with request ID: ${requestId}`)
+          .single();
+
+        if (checkError && checkError.code !== 'PGRST116') {
+          // PGRST116 is "no rows returned" - that's expected for new requests
+          console.error('Error during idempotency check:', checkError);
+        }
+
+        if (existingCourse) {
+          console.log('Course with request ID already exists:', requestId, 'Course ID:', existingCourse.id);
+          existingCourseId = existingCourse.id;
+          idempotencyCheckPassed = false;
+        } else {
+          // Additional check: look for courses with same topic created recently by same user
+          const { data: recentCourses, error: recentError } = await supabase
+            .from('courses')
+            .select('id, title, created_at')
+            .eq('user_id', userId)
+            .eq('topic', prompt)
+            .gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString()) // Last hour
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (recentError) {
+            console.error('Error checking recent courses:', recentError);
+          } else if (recentCourses && recentCourses.length > 0) {
+            const recentCourse = recentCourses[0];
+            const timeDiff = Date.now() - new Date(recentCourse.created_at).getTime();
+            const minutesAgo = Math.floor(timeDiff / (1000 * 60));
+            
+            console.log('Recent course with same topic found:', recentCourse.id, 'created', minutesAgo, 'minutes ago');
+            
+            if (minutesAgo < 60) {
+              console.log('Similar course recently created, preventing duplicate');
+              existingCourseId = recentCourse.id;
+              idempotencyCheckPassed = false;
+            }
+          }
+        }
+
+        if (idempotencyCheckPassed) {
+          console.log('Idempotency check passed - no duplicates found');
+        }
+      } catch (error) {
+        console.error('Idempotency check failed:', error);
+        // Continue with course creation if idempotency check fails
+        // This prevents blocking legitimate requests due to check failures
+        idempotencyCheckPassed = true;
+      }
+    }
+
+    // If idempotency check failed, return existing course
+    if (!idempotencyCheckPassed && existingCourseId) {
+      return new Response(JSON.stringify({ 
+        error: 'Course already exists',
+        details: 'A similar course has already been created recently',
+        existingCourseId: existingCourseId,
+        success: false
+      }), {
+        status: 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Enhanced system prompt for better course generation
+    const systemPrompt = `You are GEN-COACH, an expert AI educator. Create a comprehensive, structured course based on the user's request.
+
+Course Structure Requirements:
+- Create 4-6 modules with clear, engaging titles
+- Each module should have 3-5 key learning objectives
+- Include practical examples and real-world applications
+- Structure content from basic to advanced concepts
+- Ensure logical progression between modules
+- Make content engaging and interactive
+
+Output Format:
+Return ONLY a JSON object with this exact structure:
+{
+  "title": "Course Title",
+  "modules": [
+    {
+      "id": "1",
+      "title": "Module Title",
+      "content": "Detailed module content with learning objectives, key concepts, examples, and practical applications. Make this comprehensive and educational.",
+      "objectives": ["Objective 1", "Objective 2", "Objective 3"],
+      "completed": false
+    }
+  ],
+  "youtubeLinks": [
+    {
+      "title": "Video Title",
+      "url": "https://youtube.com/watch?v=...",
+      "thumbnail": "https://img.youtube.com/vi/.../default.jpg"
+    }
+  ],
+  "wikipediaData": {
+    "summary": "Brief summary of the topic",
+    "keyConcepts": ["Concept 1", "Concept 2", "Concept 3"]
+  }
+}
+
+Language: ${language || 'en'}
+User: ${userName || 'Student'}`;
+
+    let userPrompt = `Create a comprehensive course about: ${prompt}`;
+    
+    // Add file context if provided (for AI processing only)
+    if (fileUrl) {
+      userPrompt += `\n\n[AI CONTEXT ONLY] Reference document available for enhanced content generation.`;
+      if (fileSize) {
+        userPrompt += `\nFile size: ${Math.round(fileSize / 1024)}KB`;
+      }
+    }
+
+    userPrompt += `\n\nIMPORTANT INSTRUCTIONS:
+- Generate a professional, concise course title that focuses on the main topic
+- DO NOT include phrases like "using the uploaded file", "reference document", file names, URLs, or any technical details in the title
+- DO NOT include phrases like "using the uploaded file", "reference document", file names, URLs, or any technical details in module titles or content
+- The title should be clean, user-friendly, and professional
+- Use the reference document to enhance content quality but never mention it in the user-facing content
+- Ensure all content is clean and free of technical references
+
+Please ensure the course is:
+- Well-structured with clear learning objectives
+- Practical and applicable to real-world scenarios
+- Engaging and interactive
+- Suitable for the specified language: ${language || 'en'}
+- Professional and user-friendly in presentation`;
+
+    console.log('Calling OpenRouter API...');
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openrouterApiKey}`,
+        'Authorization': `Bearer ${openRouterApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         model: 'deepseek/deepseek-r1:free',
         messages: [
-          {
-            role: 'system',
-            content: `You are an expert course creator and educational content developer. Create a comprehensive, well-structured course based on ${userName ? `${userName}'s` : 'the user\'s'} request. \n\nCRITICAL: Format your response EXACTLY as follows with proper XML tags:\n\n<TITLE_HEADING>Course Title Here</TITLE_HEADING>\n\n<SECTION_HEADING>Module 1: Introduction and Fundamentals</SECTION_HEADING>\n<SECTION_BODY>\nProvide detailed, educational content for this module. Include:\n- Clear explanations of key concepts\n- Practical examples and applications\n- Step-by-step breakdowns where appropriate\n- Real-world context and relevance\nMake this comprehensive and engaging for learners.\n</SECTION_BODY>\n<SECTION_TEST>\n1. What is the primary focus of this module?\na) Basic concepts and fundamentals\nb) Advanced applications only\nc) Historical background only\nd) Practical exercises only\nAnswer: a\n\n2. Which of the following best describes the learning approach in this module?\na) Memorization-based learning\nb) Conceptual understanding with practical examples\nc) Theory without application\nd) Advanced topics only\nAnswer: b\n</SECTION_TEST>\n\n<SECTION_HEADING>Module 2: Core Concepts and Applications</SECTION_HEADING>\n<SECTION_BODY>\nBuild upon the foundation from Module 1. Include:\n- Deeper exploration of core concepts\n- Practical applications and use cases\n- Problem-solving techniques\n- Interactive examples\n</SECTION_BODY>\n<SECTION_TEST>\n1. How do the concepts in this module build upon Module 1?\na) They are completely unrelated\nb) They extend and apply the foundational knowledge\nc) They replace the previous concepts\nd) They are simplified versions\nAnswer: b\n\n2. What is the main goal of this module?\na) To introduce basic concepts\nb) To apply and extend core knowledge\nc) To provide historical context\nd) To conclude the course\nAnswer: b\n</SECTION_TEST>\n\nContinue this pattern for 3-5 modules total. Each module should be substantial, educational, and progressively build knowledge. Make the course comprehensive, practical, and engaging.`
-          },
-          { 
-            role: 'user', 
-            content: `Create a comprehensive course about: ${prompt}\n\nPlease ensure the course is:\n- Well-structured with clear learning progression\n- Practical and applicable\n- Engaging and educational\n- Suitable for learners at various levels\n- Contains real-world examples and applications\n\nOutput language: ${language || 'en'}`
-          }
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
         ],
         temperature: 0.7,
         max_tokens: 4000,
       }),
     });
 
-    console.log('OpenRouter API response status:', openrouterResponse.status);
-
-    if (!openrouterResponse.ok) {
-      const errorText = await openrouterResponse.text();
-      console.error('OpenRouter API error:', errorText);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenRouter API error:', response.status, errorText);
       return new Response(JSON.stringify({ 
-        error: `OpenRouter API error: ${openrouterResponse.status}`,
-        details: errorText || 'Unknown API error'
+        error: `OpenRouter API error: ${response.status}`,
+        details: errorText
       }), {
-        status: 502,
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const data = await openrouterResponse.json();
-    console.log('OpenRouter response received successfully');
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
     
-    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      console.error('Invalid OpenRouter response format:', data);
+    if (!content) {
       return new Response(JSON.stringify({ 
-        error: 'Invalid response format from OpenRouter API',
-        details: 'The AI service returned an unexpected response format'
+        error: 'No content received from AI',
+        details: 'The AI model did not return any content'
       }), {
-        status: 502,
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    
-    let generatedContent = data.choices[0].message.content;
-    console.log('Generated content length:', generatedContent.length);
 
-    // Optional server-side translation via translate-text if requested and language != en
+    console.log('Parsing AI response...');
+    let courseData;
     try {
-      const targetLang = (language || 'en').toLowerCase();
-      if (targetLang !== 'en') {
-        console.log('Translating generated content to', targetLang);
-        const tr = await fetch(`${supabaseUrl}/functions/v1/translate-text`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseServiceKey}`
+      // Try to parse as JSON first
+      courseData = JSON.parse(content);
+    } catch (parseError) {
+      console.error('Failed to parse AI response as JSON:', parseError);
+      console.log('Raw AI response:', content);
+      // Fallback: create a basic course structure
+      courseData = {
+        title: `Course on ${prompt}`,
+        modules: [
+          {
+            id: "1",
+            title: "Introduction",
+            content: `Welcome to your course on ${prompt}. This module will introduce you to the fundamental concepts and prepare you for the learning journey ahead.`,
+            objectives: ["Understand the basics", "Set learning goals", "Prepare for advanced topics"],
+            completed: false
           },
-          body: JSON.stringify({ text: generatedContent, target_language: targetLang })
-        });
-        if (tr.ok) {
-          const trData = await tr.json();
-          if (trData?.success && trData?.text) {
-            generatedContent = trData.text;
+          {
+            id: "2", 
+            title: "Core Concepts",
+            content: `In this module, we'll explore the core concepts of ${prompt}. You'll learn the essential principles and foundational knowledge needed to master this topic.`,
+            objectives: ["Learn core principles", "Understand key concepts", "Apply basic knowledge"],
+            completed: false
+          },
+          {
+            id: "3",
+            title: "Advanced Topics", 
+            content: `Now we'll dive into advanced topics related to ${prompt}. This module builds upon your foundational knowledge and explores more complex applications.`,
+            objectives: ["Master advanced concepts", "Apply complex principles", "Solve challenging problems"],
+            completed: false
+          },
+          {
+            id: "4",
+            title: "Practice & Assessment",
+            content: `In this final module, you'll practice what you've learned and assess your understanding of ${prompt}. This includes practical exercises and self-assessment tools.`,
+            objectives: ["Practice skills", "Assess understanding", "Apply knowledge"],
+            completed: false
           }
-        } else {
-          console.log('Translation call failed with status', tr.status);
+        ],
+        youtubeLinks: [],
+        wikipediaData: {
+          summary: `A comprehensive course covering ${prompt}`,
+          keyConcepts: ["Fundamentals", "Core Principles", "Advanced Applications"]
         }
-      }
-    } catch (e) {
-      console.log('Translation pipeline error:', e?.message);
+      };
     }
 
-    // Parse the generated content with improved regex
-    const titleMatch = generatedContent.match(/<TITLE_HEADING>(.*?)<\/TITLE_HEADING>/s);
-    const title = titleMatch ? titleMatch[1].trim() : `Course: ${prompt}`;
+    // Extract course information
+    const title = courseData.title || `Course on ${prompt}`;
+    const modules = courseData.modules || [];
+    const youtubeLinks = courseData.youtubeLinks || [];
+    const wikipediaData = courseData.wikipediaData || {};
 
-    // Extract modules with improved parsing
-    const moduleRegex = /<SECTION_HEADING>(.*?)<\/SECTION_HEADING>\s*<SECTION_BODY>(.*?)<\/SECTION_BODY>\s*<SECTION_TEST>(.*?)<\/SECTION_TEST>/gs;
-    const modules: CourseModule[] = [];
-    let match;
-    let moduleIndex = 1;
+    // Clean up the title to remove any technical references or file URLs
+    const cleanTitle = title
+      .replace(/\[AI CONTEXT ONLY.*?\]/g, '') // Remove AI context markers
+      .replace(/using the uploaded file/gi, '')
+      .replace(/reference document/gi, '')
+      .replace(/https?:\/\/[^\s]+/g, '') // Remove URLs
+      .replace(/file:\s*[^\s]+/gi, '') // Remove file references
+      .replace(/\s+/g, ' ') // Clean up extra whitespace
+      .trim();
 
-    while ((match = moduleRegex.exec(generatedContent)) !== null) {
-      modules.push({
-        id: crypto.randomUUID(),
-        title: match[1].trim(),
-        content: match[2].trim(),
-        test: match[3].trim(),
-        completed: false
-      });
-      moduleIndex++;
-    }
+    // Clean up module content to remove technical references
+    const cleanModules = modules.map(module => ({
+      ...module,
+      title: module.title
+        .replace(/\[AI CONTEXT ONLY.*?\]/g, '')
+        .replace(/using the uploaded file/gi, '')
+        .replace(/reference document/gi, '')
+        .replace(/https?:\/\/[^\s]+/g, '')
+        .replace(/file:\s*[^\s]+/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim(),
+      content: module.content
+        .replace(/\[AI CONTEXT ONLY.*?\]/g, '')
+        .replace(/using the uploaded file/gi, '')
+        .replace(/reference document/gi, '')
+        .replace(/https?:\/\/[^\s]+/g, '')
+        .replace(/file:\s*[^\s]+/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+    }));
 
-    // If no modules were parsed, create comprehensive fallback modules
-    if (modules.length === 0) {
-      console.log('No modules parsed, creating comprehensive fallback modules');
-      
-      const fallbackModules = [
-        {
-          id: crypto.randomUUID(),
-          title: "Introduction and Overview",
-          content: `Welcome to your comprehensive course on ${prompt}. This introductory module will provide you with a solid foundation and overview of what you'll learn throughout this course.\n\nKey topics covered:\n- Fundamental concepts and terminology\n- Historical context and development\n- Real-world applications and importance\n- Learning objectives and outcomes\n\nBy the end of this module, you'll have a clear understanding of the scope and relevance of ${prompt} in today's world.`,
-          test: `1. What is the main focus of this course?\na) ${title}\nb) General education\nc) Unrelated topics\nd) Basic skills only\nAnswer: a\n\n2. Why is understanding ${prompt} important?\na) It's not important\nb) It has practical applications in many fields\nc) It's only for experts\nd) It's outdated knowledge\nAnswer: b`,
-          completed: false
-        },
-        {
-          id: crypto.randomUUID(),
-          title: "Core Concepts and Fundamentals",
-          content: `In this module, we'll dive deeper into the core concepts that form the foundation of ${prompt}. You'll learn the essential principles, key terminology, and fundamental theories that underpin this subject.\n\nWhat you'll learn:\n- Essential definitions and concepts\n- Key principles and theories\n- Foundational knowledge building blocks\n- Common misconceptions and clarifications\n\nThis module builds directly on the introduction and prepares you for more advanced topics in subsequent modules.`,
-          test: `1. What are the core concepts in ${prompt}?\na) Basic foundational principles\nb) Only advanced theories\nc) Unrelated information\nd) Historical facts only\nAnswer: a\n\n2. How does this module relate to the introduction?\na) It's completely separate\nb) It builds upon and expands the foundational knowledge\nc) It contradicts the introduction\nd) It's a summary of the introduction\nAnswer: b`,
-          completed: false
-        },
-        {
-          id: crypto.randomUUID(),
-          title: "Practical Applications and Examples",
-          content: `Now that you understand the fundamentals, this module focuses on practical applications of ${prompt}. You'll see how theoretical knowledge translates into real-world scenarios and practical solutions.\n\nModule highlights:\n- Real-world case studies and examples\n- Practical problem-solving techniques\n- Industry applications and use cases\n- Hands-on exercises and activities\n\nBy completing this module, you'll be able to apply your knowledge in practical situations and understand the relevance of ${prompt} in various contexts.`,
-          test: `1. What is the main focus of this module?\na) Theoretical concepts only\nb) Practical applications and real-world examples\nc) Historical background\nd) Advanced mathematics\nAnswer: b\n\n2. How do practical applications help learning?\na) They don't help\nb) They make concepts more concrete and understandable\nc) They complicate the subject\nd) They are only for experts\nAnswer: b`,
-          completed: false
-        },
-        {
-          id: crypto.randomUUID(),
-          title: "Advanced Topics and Future Directions",
-          content: `In this final module, we'll explore advanced topics in ${prompt} and discuss future directions and emerging trends. This module is designed to challenge your understanding and prepare you for continued learning.\n\nAdvanced topics include:\n- Cutting-edge developments and research\n- Complex problem-solving scenarios\n- Integration with other fields and disciplines\n- Future trends and opportunities\n- Resources for continued learning\n\nCompleting this module will give you a comprehensive understanding of ${prompt} and prepare you for advanced study or professional application.`,
-          test: `1. What characterizes advanced topics in ${prompt}?\na) They are simpler than basics\nb) They build on fundamentals and explore complex applications\nc) They are unrelated to previous modules\nd) They are only theoretical\nAnswer: b\n\n2. What is the purpose of discussing future directions?\na) To confuse students\nb) To prepare learners for ongoing developments in the field\nc) To end the course quickly\nd) To avoid practical applications\nAnswer: b`,
-          completed: false
-        }
-      ];
-      
-      modules.push(...fallbackModules);
-    }
-
-    console.log(`Generated ${modules.length} modules for course: ${title}`);
-
-    // Fetch Wikipedia data with better error handling
-    let wikipediaData = {};
-    try {
-      console.log('Fetching Wikipedia data...');
-      const wikiSearchTerm = title.replace(/^Course:\s*/, '').trim();
-      const wikiResponse = await fetch(
-        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wikiSearchTerm)}`,
-        {
-          headers: {
-            'User-Agent': 'CourseGenerator/1.0 (https://example.com/contact)'
-          }
-        }
-      );
-      
-      if (wikiResponse.ok) {
-        const wikiData = await wikiResponse.json();
-        wikipediaData = {
-          title: wikiData.title,
-          extract: wikiData.extract,
-          thumbnail: wikiData.thumbnail?.source,
-          url: wikiData.content_urls?.desktop?.page
-        };
-        console.log('Wikipedia data fetched successfully');
-      } else {
-        console.log('Wikipedia API returned:', wikiResponse.status);
-      }
-    } catch (error) {
-      console.log('Wikipedia fetch failed:', error.message);
-    }
-
-    // Fetch YouTube links with better error handling
-    let youtubeLinks: YouTubeLink[] = [];
-    try {
-      if (youtubeApiKey) {
-        console.log('Fetching YouTube videos...');
-        const searchQuery = title.replace(/^Course:\s*/, '').trim();
-        const ytResponse = await fetch(
-          `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery + ' tutorial')}&type=video&maxResults=5&key=${youtubeApiKey}&safeSearch=strict&relevanceLanguage=en`
-        );
-        
-        if (ytResponse.ok) {
-          const ytData = await ytResponse.json();
-          youtubeLinks = ytData.items?.map((item: { id: { videoId: string }, snippet: { title: string, thumbnails: { default?: { url: string }, medium?: { url: string } } } }) => ({
-            title: item.snippet.title,
-            url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
-            thumbnail: item.snippet.thumbnails?.default?.url || item.snippet.thumbnails?.medium?.url
-          })) || [];
-          console.log(`Fetched ${youtubeLinks.length} YouTube videos`);
-        } else {
-          console.log('YouTube API returned:', ytResponse.status);
-        }
-      } else {
-        console.log('YouTube API key not available');
-      }
-    } catch (error) {
-      console.log('YouTube fetch failed:', error.message);
-    }
-
-    // Save to Supabase with better error handling
+    // Save to Supabase with better error handling and idempotency
     let courseId = null;
-    if (supabaseUrl && supabaseServiceKey) {
-      try {
-        console.log('Saving course to database...');
-        const supabase = createClient(supabaseUrl, supabaseServiceKey);
-        
-        const { data: courseData, error: insertError } = await supabase
-          .from('courses')
-          .insert({
-            user_id: userId,
-            title,
-            topic: prompt,
-            modules,
-            youtube_links: youtubeLinks,
-            wikipedia_data: wikipediaData,
-            progress: 0,
-            schedule: 'Self-paced',
-            additional_details: `AI-generated course with ${modules.length} modules`
-          })
-          .select()
-          .single();
+    try {
+      console.log('Saving course to database...');
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      
+      // Create clean additional details without technical file information
+      let additionalDetails = `AI-generated course with ${cleanModules.length} modules in ${language || 'en'}`;
+      if (requestId) {
+        additionalDetails += ` - Request ID: ${requestId}`;
+      }
+      if (fileUrl) {
+        additionalDetails += ` - Enhanced with uploaded document`; // Clean description
+      }
+      
+      const { data: insertedCourse, error: insertError } = await supabase
+        .from('courses')
+        .insert({
+          user_id: userId,
+          title: cleanTitle, // Use cleaned title
+          topic: prompt,
+          modules: cleanModules, // Use cleaned modules
+          youtube_links: youtubeLinks,
+          wikipedia_data: wikipediaData,
+          progress: 0,
+          schedule: 'Self-paced',
+          additional_details: additionalDetails,
+          file_url: fileUrl || null,
+          file_size: fileSize || null
+        })
+        .select()
+        .single();
 
-        if (insertError) {
-          console.error('Error saving course:', insertError);
-          return new Response(JSON.stringify({ 
-            error: `Database error: ${insertError.message}`,
-            details: 'Failed to save course to database'
-          }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        } else {
-          courseId = courseData.id;
-          console.log('Course saved successfully with ID:', courseId);
-        }
-      } catch (dbError) {
-        console.error('Database operation failed:', dbError);
+      if (insertError) {
+        console.error('Error saving course:', insertError);
         return new Response(JSON.stringify({ 
-          error: `Failed to save course: ${dbError.message}`,
-          details: 'Database operation failed'
+          error: `Database error: ${insertError.message}`,
+          details: 'Failed to save course to database'
         }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
+      } else {
+        courseId = insertedCourse.id;
+        console.log('Course saved successfully with ID:', courseId, 'Request ID:', requestId);
       }
+    } catch (dbError) {
+      console.error('Database operation failed:', dbError);
+      return new Response(JSON.stringify({ 
+        error: `Failed to save course: ${dbError.message}`,
+        details: 'Database operation failed'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const resultResponse = {
       courseId,
-      title,
-      modules,
+      title: cleanTitle, // Return cleaned title
+      modules: cleanModules, // Return cleaned modules
       youtubeLinks,
       wikipediaData,
       language: language || 'en',
-      success: true
+      success: true,
+      requestId, // Include request ID in response for debugging
+      fileUrl, // Include file URL in response
+      fileSize // Include file size in response
     };
 
     console.log('Course generation completed successfully');
@@ -384,12 +502,15 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in generate-course function:', error);
     console.error('Error stack:', error.stack);
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      cause: error.cause
+    });
     
     return new Response(JSON.stringify({ 
-      error: error.message || 'Unknown error occurred',
-      details: 'Course generation failed',
-      timestamp: new Date().toISOString(),
-      success: false
+      error: 'Internal server error',
+      details: error.message || 'An unexpected error occurred'
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

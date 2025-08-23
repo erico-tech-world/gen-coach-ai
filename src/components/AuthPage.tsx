@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Brain, Mail, Lock, Loader2, Sparkles, Chrome } from "lucide-react";
+import { Brain, Mail, Lock, Loader2, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface AuthPageProps {
@@ -51,30 +51,28 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
+    if (!email || !password || !name) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all fields.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     setIsLoading(true);
     try {
-      console.log('Attempting signup with email:', email);
-      console.log('Current origin:', window.location.origin);
-      
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: window.location.hostname === 'localhost' 
-            ? `${window.location.origin}/` 
-            : 'https://gen-coach-ai.vercel.app/',
           data: {
-            name: name
+            name: name.trim()
           }
         }
       });
 
-      console.log('Signup response:', { error });
-
       if (error) {
-        console.error('Signup error:', error);
         toast({
           title: "Sign Up Error",
           description: error.message,
@@ -82,17 +80,16 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
         });
       } else {
         toast({
-          title: "Verify your email",
-          description: "We sent a verification link. Please check your inbox.",
+          title: "Account Created!",
+          description: "Please check your email to verify your account.",
         });
-        // Redirect to verify page (frontend route to be handled)
-        window.location.href = "/verify-email";
+        // Redirect to email verification page
+        window.location.href = '/verify-email';
       }
     } catch (error) {
-      console.error('Unexpected signup error:', error);
       toast({
         title: "Error",
-        description: "An unexpected error occurred.",
+        description: "An unexpected error occurred during sign up.",
         variant: "destructive"
       });
     } finally {
@@ -102,7 +99,14 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
+    if (!email || !password) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter your email and password.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -118,16 +122,12 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
           variant: "destructive"
         });
       } else {
-        toast({
-          title: "Welcome back!",
-          description: "You've been successfully signed in.",
-        });
         onAuthSuccess();
       }
     } catch (error) {
       toast({
         title: "Error",
-        description: "An unexpected error occurred.",
+        description: "An unexpected error occurred during sign in.",
         variant: "destructive"
       });
     } finally {
@@ -136,60 +136,66 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-2">
-          <div className="w-16 h-16 rounded-full bg-ai-gradient mx-auto flex items-center justify-center shadow-neural-glow">
-            <Brain className="w-8 h-8 text-white" />
+        <CardHeader className="text-center space-y-4">
+          {/* GEN-COACH Logo */}
+          <div className="flex justify-center">
+            <img src="/GenCoachImg.png" alt="GEN-COACH Logo" className="w-20 h-20" />
           </div>
-          <CardTitle className="text-2xl font-bold">Welcome to GEN-COACH</CardTitle>
-          <p className="text-muted-foreground">AI-powered learning made simple</p>
+          
+          {/* Welcome Section */}
+          <div className="space-y-2">
+            <CardTitle className="text-2xl font-bold">Welcome to GEN-COACH</CardTitle>
+            <p className="text-muted-foreground">AI-powered learning made simple</p>
+          </div>
         </CardHeader>
         
-        <CardContent>
+        <CardContent className="space-y-6">
+          {/* Google OAuth Button */}
+          <div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-12 flex items-center justify-center gap-3"
+              onClick={handleGoogleSignIn}
+              disabled={isOAuthLoading}
+            >
+              {isOAuthLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <img src="/googleLogo.png" alt="Google" className="w-5 h-5" />
+              )}
+              <span className="font-medium">
+                {isOAuthLoading ? "Signing in..." : "Continue with Google"}
+              </span>
+            </Button>
+          </div>
+
+          {/* Divider */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Or continue with email
+              </span>
+            </div>
+          </div>
+          
+          {/* Email Auth Tabs */}
           <Tabs defaultValue="signin" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="signin">Sign In</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
             
-            {/* Google OAuth Button */}
-            <div className="mt-6">
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={handleGoogleSignIn}
-                disabled={isOAuthLoading}
-              >
-                {isOAuthLoading ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Chrome className="w-4 h-4 mr-2" />
-                )}
-                Continue with Google
-              </Button>
-            </div>
-
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Or continue with email
-                </span>
-              </div>
-            </div>
-            
-            <TabsContent value="signin" className="space-y-4">
+            <TabsContent value="signin" className="space-y-4 mt-4">
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
-                  <label htmlFor="signin-email" className="text-sm font-medium">
-                    Email
-                  </label>
+                  <label className="text-sm font-medium">Email</label>
                   <Input
-                    id="signin-email"
                     type="email"
                     placeholder="Enter your email"
                     value={email}
@@ -198,11 +204,8 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label htmlFor="signin-password" className="text-sm font-medium">
-                    Password
-                  </label>
+                  <label className="text-sm font-medium">Password</label>
                   <Input
-                    id="signin-password"
                     type="password"
                     placeholder="Enter your password"
                     value={password}
@@ -210,33 +213,38 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
                     required
                   />
                 </div>
-                <div className="space-y-4">
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
-                    Sign In
-                  </Button>
-                  <div className="text-center">
-                    <Button
-                      type="button"
-                      variant="link"
-                      className="text-sm"
-                      onClick={() => window.location.href = '/forgot-password'}
-                    >
-                      Forgot your password?
-                    </Button>
-                  </div>
-                </div>
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Signing In...
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="w-4 h-4 mr-2" />
+                      Sign In
+                    </>
+                  )}
+                </Button>
               </form>
+              
+              {/* Forgot Password Link */}
+              <div className="text-center">
+                <Button
+                  variant="link"
+                  className="text-sm text-muted-foreground hover:text-primary"
+                  onClick={() => window.location.href = '/forgot-password'}
+                >
+                  Forgot your password?
+                </Button>
+              </div>
             </TabsContent>
             
-            <TabsContent value="signup" className="space-y-4">
+            <TabsContent value="signup" className="space-y-4 mt-4">
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="space-y-2">
-                  <label htmlFor="signup-name" className="text-sm font-medium">
-                    Full Name
-                  </label>
+                  <label className="text-sm font-medium">Full Name</label>
                   <Input
-                    id="signup-name"
                     type="text"
                     placeholder="Enter your full name"
                     value={name}
@@ -245,11 +253,8 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label htmlFor="signup-email" className="text-sm font-medium">
-                    Email
-                  </label>
+                  <label className="text-sm font-medium">Email</label>
                   <Input
-                    id="signup-email"
                     type="email"
                     placeholder="Enter your email"
                     value={email}
@@ -258,11 +263,8 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label htmlFor="signup-password" className="text-sm font-medium">
-                    Password
-                  </label>
+                  <label className="text-sm font-medium">Password</label>
                   <Input
-                    id="signup-password"
                     type="password"
                     placeholder="Create a password"
                     value={password}
@@ -271,8 +273,17 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                  Create Account
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Creating Account...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Create Account
+                    </>
+                  )}
                 </Button>
               </form>
             </TabsContent>

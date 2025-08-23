@@ -145,6 +145,41 @@ export function useCourses() {
 
   const deleteCourse = async (courseId: string) => {
     try {
+      // First, get the course to check if it has associated files
+      const courseToDelete = courses.find(course => course.id === courseId);
+      if (!courseToDelete) {
+        throw new Error('Course not found');
+      }
+
+      // If the course has a file URL, delete the file from storage first
+      if (courseToDelete.file_url) {
+        try {
+          // Extract the file path from the URL
+          const urlParts = courseToDelete.file_url.split('/');
+          const fileName = urlParts[urlParts.length - 1];
+          const userId = urlParts[urlParts.length - 2];
+          const filePath = `course-uploads/${userId}/${fileName}`;
+          
+          console.log('Deleting file from storage:', filePath);
+          
+          // Delete the file from Supabase Storage
+          const { error: storageError } = await supabase.storage
+            .from('user-uploads')
+            .remove([filePath]);
+          
+          if (storageError) {
+            console.warn('Failed to delete file from storage:', storageError);
+            // Continue with course deletion even if file deletion fails
+          } else {
+            console.log('File deleted from storage successfully');
+          }
+        } catch (fileError) {
+          console.warn('Error deleting file from storage:', fileError);
+          // Continue with course deletion even if file deletion fails
+        }
+      }
+
+      // Now delete the course from the database
       const { error } = await supabase
         .from('courses')
         .delete()

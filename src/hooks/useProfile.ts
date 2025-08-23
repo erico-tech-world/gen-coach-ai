@@ -46,10 +46,36 @@ export function useProfile() {
     fetchProfile();
   }, [user]);
 
+  // Helper function to get first name from full name
+  const getFirstName = (fullName: string): string => {
+    if (!fullName || typeof fullName !== 'string') return 'User';
+    
+    // Split by whitespace and get the first part
+    const nameParts = fullName.trim().split(/\s+/);
+    const firstName = nameParts[0];
+    
+    // Capitalize first letter and return
+    return firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+  };
+
+  // Get display name (first name) for UI
+  const getDisplayName = (): string => {
+    if (profile?.name) {
+      return getFirstName(profile.name);
+    }
+    if (user?.email) {
+      // Fallback to email username if no profile name
+      const emailUsername = user.email.split('@')[0];
+      return getFirstName(emailUsername);
+    }
+    return 'User';
+  };
+
   return {
     profile,
     isLoading,
-    userName: profile?.name || user?.email?.split('@')[0] || 'User',
+    userName: getDisplayName(),
+    fullName: profile?.name || user?.email?.split('@')[0] || 'User',
     languagePreference: profile?.language_preference || 'en',
     async updateProfile(updates: { name?: string; language_preference?: string }) {
       if (!user) return null;

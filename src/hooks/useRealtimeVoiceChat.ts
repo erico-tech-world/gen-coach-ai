@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useCallback, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface VoiceChatMessage {
   id: string;
@@ -29,23 +29,91 @@ export function useRealtimeVoiceChat() {
         throw new Error('Speech recognition not supported in this browser');
       }
 
+      // Show connecting state
+      toast({
+        title: "Connecting...",
+        description: "Initializing voice chat capabilities...",
+      });
+
+      // Create new recognition instance
       recognitionRef.current = new SpeechRecognition();
       synthRef.current = window.speechSynthesis;
       
+      // Configure recognition settings
       recognitionRef.current.continuous = false;
       recognitionRef.current.interimResults = false;
       recognitionRef.current.lang = 'en-US';
       
+      // Set up recognition event handlers BEFORE setting connected state
+      recognitionRef.current.onstart = () => {
+        console.log('Speech recognition started');
+      };
+      
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setCurrentTranscript(transcript);
+        
+        // Add user message to chat
+        const userMessage: VoiceChatMessage = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: transcript,
+          timestamp: new Date()
+        };
+        
+        setMessages(prev => [...prev, userMessage]);
+        
+        // Process AI response using the actual AI service
+        handleAIResponse(transcript);
+      };
+      
+      recognitionRef.current.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        if (event.error !== 'no-speech') {
+          toast({
+            title: "Voice Recognition Error",
+            description: `Error: ${event.error}. Please try again.`,
+            variant: "destructive"
+          });
+        }
+        // Don't disconnect on error - let user try again
+        setIsRecording(false);
+      };
+      
+      recognitionRef.current.onend = () => {
+        console.log('Speech recognition ended');
+        // Don't disconnect here - let user continue using voice chat
+        // Only restart recognition if user wants to speak again
+        setIsRecording(false);
+      };
+      
+      // Set connected state AFTER setting up all handlers
       setIsConnected(true);
+      console.log('✅ Voice chat connected successfully');
+      
+      // Success notification
       toast({
-        title: "Voice chat connected",
-        description: "You can now speak with the AI using DeepSeek!",
+        title: "Voice Chat Connected! 🎉",
+        description: "You can now speak with the AI. Click the microphone to start recording.",
       });
+      
+      // Add welcome message
+      const welcomeMessage: VoiceChatMessage = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: "Hello! I'm your AI voice assistant. I'm ready to help you with any questions or tasks. You can speak to me or type your messages.",
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [welcomeMessage]);
+      
     } catch (error) {
       console.error('Failed to connect to voice chat:', error);
+      // Reset connection state on error
+      setIsConnected(false);
       toast({
-        title: "Connection failed",
-        description: "Could not initialize voice chat. Please ensure microphone access is allowed.",
+        title: "Connection Failed",
+        description: "Could not initialize voice chat. Please ensure microphone access is allowed and try again.",
         variant: "destructive"
       });
       throw error;
@@ -53,6 +121,7 @@ export function useRealtimeVoiceChat() {
   }, [toast]);
 
   const disconnect = useCallback(() => {
+    console.log('🔌 Disconnecting voice chat...');
     if (recognitionRef.current) {
       recognitionRef.current.stop();
     }
@@ -63,64 +132,65 @@ export function useRealtimeVoiceChat() {
     setIsRecording(false);
     setIsSpeaking(false);
     setCurrentTranscript('');
+    
+    // Clear messages when disconnecting
+    setMessages([]);
+    console.log('🔌 Voice chat disconnected');
   }, []);
 
   const handleAIResponse = useCallback(async (userMessage: string) => {
     try {
-      setCurrentTranscript('AI is thinking...');
-      
-      console.log('Sending message to AI:', userMessage);
-      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
       const { data, error } = await supabase.functions.invoke('realtime-voice-chat', {
-        body: { message: userMessage }
+        body: {
+          message: userMessage,
+          userName: user.user_metadata?.name || user.email,
+          conversationHistory: messages.slice(-5).map(msg => ({
+            role: msg.role,
+            content: msg.content
+          }))
+        }
       });
 
-      console.log('Supabase function response:', { data, error });
-
       if (error) {
-        console.error('Supabase function error:', error);
-        throw new Error(`AI service error: ${error.message}`);
+        throw new Error(`Voice chat error: ${error.message}`);
       }
 
-      if (!data) {
-        throw new Error('No data received from AI service');
-      }
-
-      if (!data.response) {
-        console.error('Invalid response format:', data);
-        throw new Error('Invalid response format from AI service');
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to get AI response');
       }
 
       const aiResponse = data.response;
       
-      // Add AI message
-      const assistantMessage: VoiceChatMessage = {
+      // Clean up the AI response to remove technical references and improve user experience
+      const cleanAIResponse = cleanAIResponseContent(aiResponse);
+      
+      // Add AI message to chat
+      const aiMessage: VoiceChatMessage = {
         id: Date.now().toString(),
         role: 'assistant',
-        content: aiResponse,
+        content: cleanAIResponse,
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, assistantMessage]);
       
-      // Speak the response
-      setCurrentTranscript(aiResponse);
-      speakText(aiResponse);
+      setMessages(prev => [...prev, aiMessage]);
+      
+      // Speak the cleaned AI response
+      speakText(cleanAIResponse);
+      
     } catch (error) {
-      console.error('Error getting AI response:', error);
-      setCurrentTranscript('');
-      
-      let errorMessage = 'Failed to get response from AI. Please try again.';
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      
+      console.error('AI response error:', error);
       toast({
-        title: "AI Error",
-        description: errorMessage,
+        title: "AI Response Error",
+        description: "Failed to get response from AI. Please try again.",
         variant: "destructive"
       });
     }
-  }, [toast]);
+  }, [messages, toast]);
 
   const speakText = useCallback((text: string) => {
     if (!synthRef.current) return;
@@ -128,10 +198,28 @@ export function useRealtimeVoiceChat() {
     // Cancel any ongoing speech
     synthRef.current.cancel();
     
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
+    // Clean text for speech synthesis (remove symbols, emojis, etc.)
+    const cleanText = text
+      .replace(/[\p{Extended_Pictographic}\p{Emoji_Presentation}\uFE0F]/gu, '')
+      .replace(/[^\w\s.,!?-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 0.9;
     utterance.pitch = 1;
     utterance.volume = 1;
+    
+    // Try to use a good voice
+    const voices = synthRef.current.getVoices();
+    const preferredVoice = voices.find(voice => 
+      voice.lang.startsWith('en') && 
+      (voice.name.includes('Google') || voice.name.includes('Microsoft') || voice.name.includes('Alex'))
+    ) || voices.find(voice => voice.lang.startsWith('en')) || voices[0];
+    
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
     
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => {
@@ -147,78 +235,97 @@ export function useRealtimeVoiceChat() {
     synthRef.current.speak(utterance);
   }, []);
 
-  const startRecording = useCallback(() => {
-    if (!recognitionRef.current || !isConnected) return;
+  // Function to clean AI response content for better user experience
+  const cleanAIResponseContent = useCallback((response: string): string => {
+    if (!response) return '';
     
-    recognitionRef.current.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      console.log('Speech recognized:', transcript);
-      
-      // Add user message
-      const userMessage: VoiceChatMessage = {
-        id: Date.now().toString(),
-        role: 'user',
-        content: transcript,
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, userMessage]);
-      
-      // Send to AI and get response
-      handleAIResponse(transcript);
-    };
+    let cleanResponse = response;
+    
+    // Remove technical references and file information
+    cleanResponse = cleanResponse
+      .replace(/\[AI CONTEXT ONLY.*?\]/g, '') // Remove AI context markers
+      .replace(/using the uploaded file/gi, '')
+      .replace(/reference document/gi, '')
+      .replace(/https?:\/\/[^\s]+/g, '') // Remove URLs
+      .replace(/file:\s*[^\s]+/gi, '') // Remove file references
+      .replace(/storage\.objects/gi, '')
+      .replace(/bucket_id/gi, '')
+      .replace(/user-uploads/gi, '')
+      .replace(/course-uploads/gi, '')
+      .replace(/\[.*?\]/g, '') // Remove any remaining brackets
+      .replace(/\s+/g, ' ') // Clean up extra whitespace
+      .trim();
+    
+    // Remove raw text formats and technical context
+    cleanResponse = cleanResponse
+      .replace(/raw text format/gi, '')
+      .replace(/technical context/gi, '')
+      .replace(/file content/gi, '')
+      .replace(/document content/gi, '')
+      .replace(/uploaded content/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    // Ensure the response starts with a proper sentence
+    if (cleanResponse && !cleanResponse.match(/^[A-Z]/)) {
+      cleanResponse = cleanResponse.charAt(0).toUpperCase() + cleanResponse.slice(1);
+    }
+    
+    return cleanResponse;
+  }, []);
 
-    recognitionRef.current.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error);
-      setIsRecording(false);
+  const startRecording = useCallback(() => {
+    if (!isConnected || !recognitionRef.current) {
       toast({
-        title: "Recording Error",
-        description: `Speech recognition failed: ${event.error}. Please try again.`,
+        title: "Not Connected",
+        description: "Please connect to voice chat first.",
         variant: "destructive"
       });
-    };
-
-    recognitionRef.current.onend = () => {
-      setIsRecording(false);
-    };
+      return;
+    }
 
     try {
-      recognitionRef.current.start();
       setIsRecording(true);
+      setCurrentTranscript('');
+      
+      // Start recognition
+      recognitionRef.current.start();
       
       toast({
-        title: "Listening...",
-        description: "Speak now, I'll respond when you're done.",
+        title: "Recording Started",
+        description: "Speak now...",
       });
     } catch (error) {
       console.error('Failed to start recording:', error);
       setIsRecording(false);
       toast({
-        title: "Recording Error",
-        description: "Failed to start recording. Please try again.",
+        title: "Recording Failed",
+        description: "Could not start recording. Please try again.",
         variant: "destructive"
       });
     }
-  }, [isConnected, handleAIResponse, toast]);
+  }, [isConnected, toast]);
 
   const stopRecording = useCallback(() => {
-    if (recognitionRef.current) {
+    if (recognitionRef.current && isRecording) {
       recognitionRef.current.stop();
     }
-    setIsRecording(false);
-  }, []);
+  }, [isRecording]);
 
-  const sendTextMessage = useCallback((text: string) => {
+  const sendTextMessage = useCallback(async (text: string) => {
     if (!text.trim()) return;
     
+    // Add user message
     const userMessage: VoiceChatMessage = {
       id: Date.now().toString(),
       role: 'user',
-      content: text,
+      content: text.trim(),
       timestamp: new Date()
     };
-    
     setMessages(prev => [...prev, userMessage]);
-    handleAIResponse(text);
+    
+    // Send to AI and get response
+    await handleAIResponse(text.trim());
   }, [handleAIResponse]);
 
   return {

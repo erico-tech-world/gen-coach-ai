@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -17,14 +17,25 @@ interface CourseGenerationResult {
     url: string;
     thumbnail: string;
   }>;
-  wikipediaData: any;
+  wikipediaData: Record<string, unknown>;
 }
 
 export function useAI() {
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
+  const currentRequestRef = useRef<string | null>(null);
 
-  const generateCourse = async (prompt: string, userName?: string, language: string = 'en'): Promise<CourseGenerationResult | null> => {
+  const generateCourse = async (prompt: string, userName?: string, language: string = 'en', fileUrl?: string | null, fileSize?: number): Promise<CourseGenerationResult | null> => {
+    // Prevent duplicate requests
+    if (isGenerating) {
+      console.log('Course generation already in progress, ignoring duplicate request');
+      return null;
+    }
+
+    // Generate unique request ID for idempotency
+    const requestId = `course_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    currentRequestRef.current = requestId;
+    
     setIsGenerating(true);
     
     try {
@@ -34,16 +45,25 @@ export function useAI() {
         throw new Error('User not authenticated');
       }
 
-      console.log('Generating course with prompt:', prompt);
+      console.log('Generating course with prompt:', prompt, 'Request ID:', requestId, 'File URL:', fileUrl, 'File Size:', fileSize);
 
       const { data, error } = await supabase.functions.invoke('generate-course', {
         body: {
           prompt,
           userId: user.id,
           userName,
-          language
+          language,
+          requestId, // Add request ID for idempotency
+          fileUrl, // Add file URL if provided
+          fileSize // Add file size if provided
         }
       });
+
+      // Check if this request is still current
+      if (currentRequestRef.current !== requestId) {
+        console.log('Request superseded by newer request, aborting');
+        return null;
+      }
 
       if (error) {
         console.error('Supabase function error:', error);
@@ -69,7 +89,11 @@ export function useAI() {
       });
       return null;
     } finally {
-      setIsGenerating(false);
+      // Only clear if this is still the current request
+      if (currentRequestRef.current === requestId) {
+        setIsGenerating(false);
+        currentRequestRef.current = null;
+      }
     }
   };
 

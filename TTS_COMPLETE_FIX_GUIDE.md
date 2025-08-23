@@ -56,7 +56,7 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
 
 # Required for database
 SUPABASE_URL=your_supabase_url
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SERVICE_ROLE_KEY=your_service_role_key
 ```
 
 ### **Step 3: Test the Functionality**
