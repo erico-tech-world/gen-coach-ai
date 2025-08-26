@@ -11,12 +11,23 @@ export interface Course {
   user_id: string;
   title: string;
   topic?: string | null;
-  modules: any[];
+  modules: Array<{
+    id: string;
+    title: string;
+    content?: string;
+    test?: string;
+    completed: boolean;
+    expanded?: boolean;
+  }>;
   schedule: string;
   progress: number;
   additional_details?: string | null;
-  youtube_links: any[];
-  wikipedia_data: any;
+  file_url?: string | null;
+  youtube_links: Array<{
+    url: string;
+    title: string;
+  }>;
+  wikipedia_data: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -26,12 +37,13 @@ const transformCourseRow = (row: CourseRow): Course => ({
   user_id: row.user_id,
   title: row.title,
   topic: row.topic,
-  modules: Array.isArray(row.modules) ? row.modules : [],
+  modules: Array.isArray(row.modules) ? row.modules as Course['modules'] : [],
   schedule: row.schedule || 'Self-paced',
   progress: row.progress || 0,
   additional_details: row.additional_details,
-  youtube_links: Array.isArray(row.youtube_links) ? row.youtube_links : [],
-  wikipedia_data: typeof row.wikipedia_data === 'object' && row.wikipedia_data !== null ? row.wikipedia_data : {},
+  file_url: row.file_url || null,
+  youtube_links: Array.isArray(row.youtube_links) ? row.youtube_links as Course['youtube_links'] : [],
+  wikipedia_data: typeof row.wikipedia_data === 'object' && row.wikipedia_data !== null ? row.wikipedia_data as Record<string, unknown> : {},
   created_at: row.created_at,
   updated_at: row.updated_at
 });
@@ -69,7 +81,7 @@ export function useCourses() {
   const createCourse = async (courseData: {
     title: string;
     topic?: string;
-    modules?: any[];
+    modules?: Course['modules'];
     additional_details?: string;
   }) => {
     try {
@@ -81,7 +93,7 @@ export function useCourses() {
         progress: 0,
         youtube_links: [],
         wikipedia_data: {},
-        user_id: (await supabase.auth.getUser()).data.user?.id!
+        user_id: (await supabase.auth.getUser()).data.user?.id || ''
       };
 
       const { data, error } = await supabase

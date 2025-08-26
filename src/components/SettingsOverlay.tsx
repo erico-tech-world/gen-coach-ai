@@ -7,7 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProfile } from "@/hooks/useProfile";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { X, User, Globe, Lock, Crown, Trash2, Loader2 } from "lucide-react";
+import { X, User, Globe, Lock, Crown, Trash2, Loader2, Palette } from "lucide-react";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface SettingsOverlayProps {
   isOpen: boolean;
@@ -132,7 +133,7 @@ export function SettingsOverlay({ isOpen, onClose }: SettingsOverlayProps) {
         
         <CardContent className="p-0">
           <Tabs defaultValue="profile" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto p-1 bg-muted/50">
+            <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 h-auto p-1 bg-muted/50">
               <TabsTrigger value="profile" className="flex items-center gap-2 text-xs md:text-sm">
                 <User className="h-3 w-3 md:h-4 md:w-4" />
                 <span className="hidden sm:inline">Profile</span>
@@ -140,6 +141,10 @@ export function SettingsOverlay({ isOpen, onClose }: SettingsOverlayProps) {
               <TabsTrigger value="language" className="flex items-center gap-2 text-xs md:text-sm">
                 <Globe className="h-3 w-3 md:h-4 md:w-4" />
                 <span className="hidden sm:inline">Language</span>
+              </TabsTrigger>
+              <TabsTrigger value="theme" className="flex items-center gap-2 text-xs md:text-sm">
+                <Palette className="h-3 w-3 md:h-4 md:w-4" />
+                <span className="hidden sm:inline">Theme</span>
               </TabsTrigger>
               <TabsTrigger value="password" className="flex items-center gap-2 text-xs md:text-sm">
                 <Lock className="h-3 w-3 md:h-4 md:w-4" />
@@ -196,6 +201,18 @@ export function SettingsOverlay({ isOpen, onClose }: SettingsOverlayProps) {
                     {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                     Save Language
                   </Button>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="theme" className="space-y-4">
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-foreground">Theme Preference</label>
+                  <div className="flex items-center gap-4">
+                    <ThemeToggle />
+                    <div className="text-xs text-muted-foreground">
+                      Choose between light, dark, or system theme
+                    </div>
+                  </div>
                 </div>
               </TabsContent>
               

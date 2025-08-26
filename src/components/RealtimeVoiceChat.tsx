@@ -84,12 +84,12 @@ export function RealtimeVoiceChat({ onUnmount }: RealtimeVoiceChatProps) {
         {isConnected && (
           <div className="space-y-4">
             {/* Quick Actions */}
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="bg-accent/10 border border-accent/20 rounded-lg p-4">
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium text-green-800">Voice Chat Active</span>
+                <div className="w-2 h-2 bg-accent rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium text-accent">Voice Chat Active</span>
               </div>
-              <p className="text-sm text-green-700 mb-3">
+              <p className="text-sm text-accent mb-3">
                 You're now connected! You can speak to the AI or type messages below.
               </p>
               <div className="flex gap-2">
@@ -98,7 +98,7 @@ export function RealtimeVoiceChat({ onUnmount }: RealtimeVoiceChatProps) {
                   size="sm"
                   onClick={startRecording}
                   disabled={isRecording}
-                  className="text-green-700 border-green-300 hover:bg-green-100"
+                  className="text-accent border-accent/30 hover:bg-accent/10"
                 >
                   <Mic className="w-4 h-4 mr-2" />
                   Start Speaking
@@ -107,7 +107,7 @@ export function RealtimeVoiceChat({ onUnmount }: RealtimeVoiceChatProps) {
                   variant="outline"
                   size="sm"
                   onClick={() => document.querySelector('input')?.focus()}
-                  className="text-green-700 border-green-300 hover:bg-green-100"
+                  className="text-accent border-accent/30 hover:bg-accent/10"
                 >
                   Type Message
                 </Button>
@@ -142,10 +142,10 @@ export function RealtimeVoiceChat({ onUnmount }: RealtimeVoiceChatProps) {
             {/* AI Speaking Indicator */}
             {isSpeaking && (
               <div className="flex justify-start">
-                <div className="max-w-[80%] rounded-lg p-3 bg-blue-50 border border-blue-200">
+                <div className="max-w-[80%] rounded-lg p-3 bg-primary/10 border border-primary/20">
                   <div className="flex items-center gap-2">
-                    <Volume2 className="w-4 h-4 text-blue-600 animate-pulse" />
-                    <p className="text-sm text-blue-800">
+                    <Volume2 className="w-4 h-4 text-primary animate-pulse" />
+                    <p className="text-sm text-primary">
                       AI is speaking...
                     </p>
                   </div>
@@ -179,8 +179,8 @@ export function RealtimeVoiceChat({ onUnmount }: RealtimeVoiceChatProps) {
           
           {/* Connection Status Indicator */}
           {isConnected && (
-            <div className="flex items-center gap-2 text-sm text-green-600">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <div className="flex items-center gap-2 text-sm text-accent">
+              <div className="w-2 h-2 bg-accent rounded-full animate-pulse"></div>
               Connected
             </div>
           )}

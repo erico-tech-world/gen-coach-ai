@@ -137,16 +137,18 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md shadow-floating">
         <CardHeader className="text-center space-y-4">
           {/* GEN-COACH Logo */}
           <div className="flex justify-center">
-            <img src="/GenCoachImg.png" alt="GEN-COACH Logo" className="w-20 h-20" />
+            <div className="w-20 h-20 bg-ai-gradient rounded-full flex items-center justify-center shadow-neural-glow">
+              <img src="/GenCoachImg.png" alt="GEN-COACH Logo" className="w-16 h-16" />
+            </div>
           </div>
           
           {/* Welcome Section */}
           <div className="space-y-2">
-            <CardTitle className="text-2xl font-bold">Welcome to GEN-COACH</CardTitle>
+            <CardTitle className="text-2xl font-bold text-foreground">Welcome to GEN-COACH</CardTitle>
             <p className="text-muted-foreground">AI-powered learning made simple</p>
           </div>
         </CardHeader>
@@ -157,7 +159,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
             <Button
               type="button"
               variant="outline"
-              className="w-full h-12 flex items-center justify-center gap-3"
+              className="w-full h-12 flex items-center justify-center gap-3 hover:shadow-neural-glow transition-all"
               onClick={handleGoogleSignIn}
               disabled={isOAuthLoading}
             >
@@ -175,7 +177,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
           {/* Divider */}
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
+              <span className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-background px-2 text-muted-foreground">
@@ -194,7 +196,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
             <TabsContent value="signin" className="space-y-4 mt-4">
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Email</label>
+                  <label className="text-sm font-medium text-foreground">Email</label>
                   <Input
                     type="email"
                     placeholder="Enter your email"
@@ -204,7 +206,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Password</label>
+                  <label className="text-sm font-medium text-foreground">Password</label>
                   <Input
                     type="password"
                     placeholder="Enter your password"
@@ -213,7 +215,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button type="submit" className="w-full bg-ai-gradient hover:shadow-neural-glow transition-all" disabled={isLoading}>
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -232,7 +234,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
               <div className="text-center">
                 <Button
                   variant="link"
-                  className="text-sm text-muted-foreground hover:text-primary"
+                  className="text-sm text-muted-foreground hover:text-accent"
                   onClick={() => window.location.href = '/forgot-password'}
                 >
                   Forgot your password?
@@ -243,7 +245,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
             <TabsContent value="signup" className="space-y-4 mt-4">
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Full Name</label>
+                  <label className="text-sm font-medium text-foreground">Full Name</label>
                   <Input
                     type="text"
                     placeholder="Enter your full name"
@@ -253,7 +255,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Email</label>
+                  <label className="text-sm font-medium text-foreground">Email</label>
                   <Input
                     type="email"
                     placeholder="Enter your email"
@@ -263,7 +265,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Password</label>
+                  <label className="text-sm font-medium text-foreground">Password</label>
                   <Input
                     type="password"
                     placeholder="Create a password"
@@ -272,7 +274,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button type="submit" className="w-full bg-ai-gradient hover:shadow-neural-glow transition-all" disabled={isLoading}>
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />

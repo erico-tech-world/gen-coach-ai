@@ -7,6 +7,7 @@ import { CourseCreationOverlay } from "./CourseCreationOverlay";
 import { CourseMaterialPage } from "./CourseMaterialPage";
 import { RealtimeVoiceChat } from "./RealtimeVoiceChat";
 import { SettingsOverlay } from "./SettingsOverlay";
+import { ThemeToggle } from "./ThemeToggle";
 import { useCourses, Course } from "@/hooks/useCourses";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -130,7 +131,7 @@ export function HomeScreen() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-xl sm:text-2xl font-bold">AI Voice Chat</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">AI Voice Chat</h1>
         </div>
         <RealtimeVoiceChat onUnmount={() => {
           // Only close voice chat when component unmounts, not on every interaction
@@ -217,11 +218,12 @@ export function HomeScreen() {
             <Button
               variant="outline"
               onClick={() => handleVoiceChatToggle(true)}
-              className="flex"
+              className="flex bg-ai-gradient hover:shadow-neural-glow transition-all"
             >
               <Mic className="w-4 h-4 mr-2" />
               AI Voice Chat
             </Button>
+            <ThemeToggle />
             <Button
               variant="outline"
               size="icon"
@@ -243,13 +245,13 @@ export function HomeScreen() {
 
         {/* Mobile Stats Cards */}
         <div className="grid grid-cols-2 gap-4 mb-6 sm:hidden">
-          <Card>
+          <Card className="shadow-course-card hover:shadow-neural-glow transition-all">
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-primary">{courses.length}</div>
               <div className="text-sm text-muted-foreground">Total Courses</div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="shadow-course-card hover:shadow-neural-glow transition-all">
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-accent">
                 {courses.filter(course => course.progress === 100).length}
@@ -277,7 +279,7 @@ export function HomeScreen() {
         <div className="mb-8">
               <Button
             onClick={() => setShowCreationOverlay(true)}
-            className="w-full sm:w-auto"
+            className="w-full sm:w-auto bg-ai-gradient hover:shadow-neural-glow transition-all shadow-floating"
             size="lg"
           >
             <Plus className="w-5 h-5 mr-2" />
@@ -288,10 +290,10 @@ export function HomeScreen() {
       {/* Courses Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {courses.map((course) => (
-            <Card key={course.id} className="group hover:shadow-lg transition-shadow">
+            <Card key={course.id} className="group hover:shadow-course-card transition-all shadow-floating">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
-                  <CardTitle className="text-lg font-semibold line-clamp-2">
+                  <CardTitle className="text-lg font-semibold line-clamp-2 text-foreground">
                       {course.title}
                     </CardTitle>
                       <Button
@@ -340,11 +342,11 @@ export function HomeScreen() {
         {courses.length === 0 && !isLoading && (
           <div className="text-center py-12">
             <BookOpen className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">No courses yet</h3>
+            <h3 className="text-lg font-semibold mb-2 text-foreground">No courses yet</h3>
             <p className="text-muted-foreground mb-4">
               Create your first AI-powered course to start learning
             </p>
-            <Button onClick={() => setShowCreationOverlay(true)}>
+            <Button onClick={() => setShowCreationOverlay(true)} className="bg-ai-gradient hover:shadow-neural-glow transition-all">
               <Plus className="w-4 h-4 mr-2" />
               Create Your First Course
             </Button>

@@ -424,7 +424,7 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
                     onClick={() => toggleModule(module.id)}
                   >
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg font-semibold flex items-center gap-3">
+                      <CardTitle className="text-lg font-semibold flex items-center gap-3 text-foreground">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -467,7 +467,7 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
 
                         {/* Module Test */}
                         {module.test && (
-                          <div className="border-t pt-4">
+                          <div className="border-t border-border pt-4">
                             <div className="flex items-center justify-between mb-3">
                               <h4 className="font-medium text-foreground">Module Test</h4>
                               <Button
@@ -498,7 +498,7 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
             {/* Course Actions - Mobile Friendly */}
             <Card className="border-border bg-card">
               <CardHeader>
-                <CardTitle className="text-base md:text-lg">Course Tools</CardTitle>
+                <CardTitle className="text-base md:text-lg text-foreground">Course Tools</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 flex flex-col sm:flex-row md:flex-col gap-2">
                 <Button variant="outline" className="w-full justify-start" onClick={handleParaphrase}>
@@ -526,13 +526,13 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
             {/* Progress Summary - Mobile Friendly */}
             <Card className="border-border bg-card">
               <CardHeader>
-                <CardTitle className="text-base md:text-lg">Progress Summary</CardTitle>
+                <CardTitle className="text-base md:text-lg text-foreground">Progress Summary</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Overall Progress</span>
-                    <span className="font-medium">{Math.round(calculateProgress())}%</span>
+                    <span className="font-medium text-foreground">{Math.round(calculateProgress())}%</span>
                   </div>
                   
                   <Progress value={calculateProgress()} className="h-2" />
@@ -562,7 +562,7 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-background border-t border-border p-4">
         <div className="flex items-center justify-between max-w-6xl mx-auto">
           <div className="flex items-center gap-2">
-            <div className="text-sm font-medium">{Math.round(calculateProgress())}%</div>
+            <div className="text-sm font-medium text-foreground">{Math.round(calculateProgress())}%</div>
             <Progress value={calculateProgress()} className="h-2 w-24" />
           </div>
           <div className="flex items-center gap-2">

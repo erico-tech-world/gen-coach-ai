@@ -251,7 +251,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
             additional_details: `AI Generated Course - Language: ${language}${fileUrl ? ` - Enhanced with uploaded document` : ''}`
           });
         }
-
+        
         toast({
           title: "Course Created Successfully!",
           description: "Your AI-powered course is ready. You'll be redirected to view it.",
@@ -284,11 +284,11 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
 
   return (
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-background rounded-lg shadow-lg border">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-background rounded-lg shadow-floating border border-border">
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-2xl font-bold">Create AI Course</h2>
+              <h2 className="text-2xl font-bold text-foreground">Create AI Course</h2>
               <p className="text-muted-foreground">Generate a personalized learning experience</p>
             </div>
             <Button variant="ghost" size="icon" onClick={onClose}>
@@ -299,7 +299,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
           <form onSubmit={handleGenerateCourse} className="space-y-6">
             {/* Language Selection */}
             <div className="space-y-2">
-              <Label htmlFor="language" className="flex items-center gap-2">
+              <Label htmlFor="language" className="flex items-center gap-2 text-foreground">
                 <Globe className="w-4 h-4" />
                 Course Language
               </Label>
@@ -321,7 +321,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
 
             {/* Topic Input */}
             <div className="space-y-2">
-              <Label htmlFor="topic" className="flex items-center gap-2">
+              <Label htmlFor="topic" className="flex items-center gap-2 text-foreground">
                 <Lightbulb className="w-4 h-4" />
                 What would you like to learn?
               </Label>
@@ -341,7 +341,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
 
             {/* Enhanced Document Upload with Size Validation */}
             <div className="space-y-2">
-              <Label className="flex items-center gap-2">
+              <Label className="flex items-center gap-2 text-foreground">
                 <FileText className="w-4 h-4" />
                 Upload Reference Document (Optional)
               </Label>
@@ -392,7 +392,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
                     <div className="flex items-center gap-2">
                       <FileText className="w-4 h-4" />
                       <div>
-                        <span className="text-sm font-medium">{documentName}</span>
+                        <span className="text-sm font-medium text-foreground">{documentName}</span>
                         <p className="text-xs text-muted-foreground">
                           {fileSize > 0 ? `${(fileSize / 1024).toFixed(1)}KB` : ''}
                           {fileUrl ? ' (Cloud Storage)' : ' (Inline Processing)'}
@@ -433,10 +433,10 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
             </div>
 
             {/* Tips */}
-            <Card className="bg-blue-50 border-blue-200">
+            <Card className="bg-muted border-border">
               <CardContent className="p-4">
-                <h4 className="font-semibold text-blue-900 mb-2">💡 Tips for Better Results</h4>
-                <ul className="text-sm text-blue-800 space-y-1">
+                <h4 className="font-semibold text-foreground mb-2">💡 Tips for Better Results</h4>
+                <ul className="text-sm text-muted-foreground space-y-1">
                   <li>• Be specific about your learning goals</li>
                   <li>• Include your current skill level</li>
                   <li>• Mention any specific topics or concepts you want to focus on</li>
@@ -457,23 +457,23 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                className="flex-1"
+            <Button
+              type="submit"
+                className="flex-1 bg-ai-gradient hover:shadow-neural-glow transition-all"
                 disabled={isGenerating || aiIsGenerating || !input.trim() || isUploading}
-              >
+            >
                 {isGenerating || aiIsGenerating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Generating Course...
-                  </>
-                ) : (
-                  <>
+                </>
+              ) : (
+                <>
                     <Lightbulb className="w-4 h-4 mr-2" />
-                    Generate AI Course
-                  </>
-                )}
-              </Button>
+                  Generate AI Course
+                </>
+              )}
+            </Button>
             </div>
 
             {(isGenerating || aiIsGenerating) && (
@@ -483,7 +483,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
             )}
           </form>
         </div>
-      </div>
+            </div>
     </div>
   );
 }

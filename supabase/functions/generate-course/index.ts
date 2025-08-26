@@ -335,7 +335,7 @@ Please ensure the course is:
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-
+    
     console.log('Parsing AI response...');
     let courseData;
     try {
@@ -353,28 +353,28 @@ Please ensure the course is:
             title: "Introduction",
             content: `Welcome to your course on ${prompt}. This module will introduce you to the fundamental concepts and prepare you for the learning journey ahead.`,
             objectives: ["Understand the basics", "Set learning goals", "Prepare for advanced topics"],
-            completed: false
-          },
-          {
+          completed: false
+        },
+        {
             id: "2", 
             title: "Core Concepts",
             content: `In this module, we'll explore the core concepts of ${prompt}. You'll learn the essential principles and foundational knowledge needed to master this topic.`,
             objectives: ["Learn core principles", "Understand key concepts", "Apply basic knowledge"],
-            completed: false
-          },
-          {
+          completed: false
+        },
+        {
             id: "3",
             title: "Advanced Topics", 
             content: `Now we'll dive into advanced topics related to ${prompt}. This module builds upon your foundational knowledge and explores more complex applications.`,
             objectives: ["Master advanced concepts", "Apply complex principles", "Solve challenging problems"],
-            completed: false
-          },
-          {
+          completed: false
+        },
+        {
             id: "4",
             title: "Practice & Assessment",
             content: `In this final module, you'll practice what you've learned and assess your understanding of ${prompt}. This includes practical exercises and self-assessment tools.`,
             objectives: ["Practice skills", "Assess understanding", "Apply knowledge"],
-            completed: false
+          completed: false
           }
         ],
         youtubeLinks: [],
@@ -424,10 +424,10 @@ Please ensure the course is:
 
     // Save to Supabase with better error handling and idempotency
     let courseId = null;
-    try {
-      console.log('Saving course to database...');
-      const supabase = createClient(supabaseUrl, supabaseServiceKey);
-      
+      try {
+        console.log('Saving course to database...');
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        
       // Create clean additional details without technical file information
       let additionalDetails = `AI-generated course with ${cleanModules.length} modules in ${language || 'en'}`;
       if (requestId) {
@@ -438,45 +438,45 @@ Please ensure the course is:
       }
       
       const { data: insertedCourse, error: insertError } = await supabase
-        .from('courses')
-        .insert({
-          user_id: userId,
+          .from('courses')
+          .insert({
+            user_id: userId,
           title: cleanTitle, // Use cleaned title
-          topic: prompt,
+            topic: prompt,
           modules: cleanModules, // Use cleaned modules
-          youtube_links: youtubeLinks,
-          wikipedia_data: wikipediaData,
-          progress: 0,
-          schedule: 'Self-paced',
+            youtube_links: youtubeLinks,
+            wikipedia_data: wikipediaData,
+            progress: 0,
+            schedule: 'Self-paced',
           additional_details: additionalDetails,
           file_url: fileUrl || null,
           file_size: fileSize || null
-        })
-        .select()
-        .single();
+          })
+          .select()
+          .single();
 
-      if (insertError) {
-        console.error('Error saving course:', insertError);
+        if (insertError) {
+          console.error('Error saving course:', insertError);
+          return new Response(JSON.stringify({ 
+            error: `Database error: ${insertError.message}`,
+            details: 'Failed to save course to database'
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        } else {
+        courseId = insertedCourse.id;
+        console.log('Course saved successfully with ID:', courseId, 'Request ID:', requestId);
+        }
+      } catch (dbError) {
+        console.error('Database operation failed:', dbError);
         return new Response(JSON.stringify({ 
-          error: `Database error: ${insertError.message}`,
-          details: 'Failed to save course to database'
+          error: `Failed to save course: ${dbError.message}`,
+          details: 'Database operation failed'
         }), {
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
-      } else {
-        courseId = insertedCourse.id;
-        console.log('Course saved successfully with ID:', courseId, 'Request ID:', requestId);
-      }
-    } catch (dbError) {
-      console.error('Database operation failed:', dbError);
-      return new Response(JSON.stringify({ 
-        error: `Failed to save course: ${dbError.message}`,
-        details: 'Database operation failed'
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
     }
 
     const resultResponse = {
