@@ -26,9 +26,14 @@ export function useAI() {
   const currentRequestRef = useRef<string | null>(null);
 
   const generateCourse = async (prompt: string, userName?: string, language: string = 'en', fileUrl?: string | null, fileSize?: number): Promise<CourseGenerationResult | null> => {
-    // Prevent duplicate requests
+    // Prevent duplicate requests with enhanced idempotency
     if (isGenerating) {
       console.log('Course generation already in progress, ignoring duplicate request');
+      toast({
+        title: "Generation in Progress",
+        description: "Please wait for the current course generation to complete.",
+        variant: "destructive"
+      });
       return null;
     }
 
@@ -46,6 +51,30 @@ export function useAI() {
       }
 
       console.log('Generating course with prompt:', prompt, 'Request ID:', requestId, 'File URL:', fileUrl, 'File Size:', fileSize);
+
+      // Check for recent duplicate requests in the last 30 seconds
+      const recentRequests = await supabase
+        .from('courses')
+        .select('id, created_at')
+        .eq('user_id', user.id)
+        .gte('created_at', new Date(Date.now() - 30000).toISOString())
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (recentRequests.data && recentRequests.data.length > 0) {
+        const lastRequest = recentRequests.data[0];
+        const timeDiff = Date.now() - new Date(lastRequest.created_at).getTime();
+        
+        if (timeDiff < 30000) { // 30 seconds
+          console.log('Recent course generation detected, preventing duplicate');
+          toast({
+            title: "Duplicate Request",
+            description: "Please wait before generating another course.",
+            variant: "destructive"
+          });
+          return null;
+        }
+      }
 
       const { data, error } = await supabase.functions.invoke('generate-course', {
         body: {
@@ -72,6 +101,11 @@ export function useAI() {
 
       if (!data) {
         throw new Error('No data received from course generation service');
+      }
+
+      // Verify course was actually created
+      if (!data.courseId) {
+        throw new Error('Course generation completed but no course ID returned');
       }
 
       toast({

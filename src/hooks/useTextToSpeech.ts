@@ -2,12 +2,16 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/hooks/useProfile";
+import { useRealtimeTTS } from "./useRealtimeTTS";
 
 export function useTextToSpeech() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const { toast } = useToast();
   const { languagePreference } = useProfile();
+
+  // Integrate with RealtimeTTS system
+  const realtimeTTS = useRealtimeTTS();
 
   // Remove emojis/symbols and normalize text for better TTS pedagogy
   const sanitizeForSpeech = (raw: string): string => {
@@ -284,50 +288,24 @@ export function useTextToSpeech() {
   };
 
   const speak = async (text: string, language?: string) => {
+    const clean = sanitizeForSpeech(text);
+    if (!clean) return;
+    
     try {
-      const clean = sanitizeForSpeech(text);
-      if (!clean) return;
+      // Use RealtimeTTS system as primary TTS
+      console.log('Using RealtimeTTS system for speech generation');
+      await realtimeTTS.speak(clean, language);
       
-      const chunks = splitIntoChunks(clean);
-      let playedAny = false;
-      
-      for (const chunk of chunks) {
-        try {
-          const audioContent = await generateSpeech(chunk, language);
-          if (audioContent) {
-            try {
-              await playAudio(audioContent);
-              playedAny = true;
-            } catch (playbackError) {
-              console.log('Audio playback failed, continuing with next chunk:', playbackError);
-              // Continue with next chunk instead of breaking
-            }
-          }
-        } catch (ttsError) {
-          console.log('TTS generation failed for chunk, continuing with next:', ttsError);
-          // Continue with next chunk instead of breaking
-        }
-      }
-      
-      if (!playedAny) {
-        // Fallback to browser speech if no audio content was played
-        const targetLanguage = language || languagePreference || 'en';
-        toast({
-          title: "Using Browser Speech",
-          description: `External TTS service unavailable, using browser speech synthesis in ${targetLanguage}.`,
-        });
-        browserSpeech(text, targetLanguage);
-      }
     } catch (error) {
-      console.error('Speech error:', error);
+      console.error('RealtimeTTS failed, falling back to browser speech:', error);
       
-      // Final fallback to browser speech
+      // Fallback to browser speech if RealtimeTTS fails
       const targetLanguage = language || languagePreference || 'en';
       toast({
         title: "Fallback to Browser Speech",
-        description: "Using browser text-to-speech as fallback.",
+        description: "Advanced TTS system unavailable, using browser speech synthesis.",
       });
-      browserSpeech(text, targetLanguage);
+      browserSpeech(clean, targetLanguage);
     }
   };
 
@@ -336,6 +314,15 @@ export function useTextToSpeech() {
     playAudio,
     speak,
     isGenerating,
-    isPlaying
+    isPlaying,
+    // Expose RealtimeTTS functions for advanced usage
+    realtimeTTS: {
+      speak: realtimeTTS.speak,
+      stop: realtimeTTS.stop,
+      pause: realtimeTTS.pause,
+      resume: realtimeTTS.resume,
+      currentModel: realtimeTTS.currentModel,
+      queueLength: realtimeTTS.queueLength
+    }
   };
 }

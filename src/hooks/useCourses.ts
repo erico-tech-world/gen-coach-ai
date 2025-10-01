@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Database } from "@/integrations/supabase/types";
+import { cloudflareR2Storage } from "@/services/cloudflareR2Storage";
 
 type CourseRow = Database['public']['Tables']['courses']['Row'];
 type CourseInsert = Database['public']['Tables']['courses']['Insert'];
@@ -166,24 +167,21 @@ export function useCourses() {
       // If the course has a file URL, delete the file from storage first
       if (courseToDelete.file_url) {
         try {
-          // Extract the file path from the URL
-          const urlParts = courseToDelete.file_url.split('/');
-          const fileName = urlParts[urlParts.length - 1];
-          const userId = urlParts[urlParts.length - 2];
-          const filePath = `course-uploads/${userId}/${fileName}`;
-          
-          console.log('Deleting file from storage:', filePath);
-          
-          // Delete the file from Supabase Storage
-          const { error: storageError } = await supabase.storage
-            .from('user-uploads')
-            .remove([filePath]);
-          
-          if (storageError) {
-            console.warn('Failed to delete file from storage:', storageError);
-            // Continue with course deletion even if file deletion fails
-          } else {
-            console.log('File deleted from storage successfully');
+          // Prefer Cloudflare R2 deletion via Edge Function when configured
+          const deleted = await cloudflareR2Storage.deleteFile(courseToDelete.file_url);
+          if (!deleted) {
+            console.warn('R2 deletion failed or not configured. Attempting Supabase Storage cleanup as fallback.');
+            // Fallback: best-effort cleanup in Supabase Storage if URL matches that bucket
+            const urlParts = courseToDelete.file_url.split('/');
+            const fileName = urlParts[urlParts.length - 1];
+            const userId = urlParts[urlParts.length - 2];
+            const filePath = `course-uploads/${userId}/${fileName}`;
+            const { error: storageError } = await supabase.storage
+              .from('user-uploads')
+              .remove([filePath]);
+            if (storageError) {
+              console.warn('Failed to delete file from Supabase Storage:', storageError);
+            }
           }
         } catch (fileError) {
           console.warn('Error deleting file from storage:', fileError);

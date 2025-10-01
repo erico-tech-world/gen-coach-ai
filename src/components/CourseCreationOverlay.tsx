@@ -12,6 +12,7 @@ import { useAI } from "@/hooks/useAI";
 import { useProfile } from "@/hooks/useProfile";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { CloudflareR2Storage } from "@/services/cloudflareR2Storage";
 
 interface CourseCreationOverlayProps {
   isOpen: boolean;
@@ -36,6 +37,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
   const [documentName, setDocumentName] = useState("");
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [fileSize, setFileSize] = useState<number>(0);
+  const [fileType, setFileType] = useState<string>("");
   const [uploadError, setUploadError] = useState<string | null>(null);
   const { createCourse } = useCourses();
   const { generateCourse, isGenerating: aiIsGenerating } = useAI();
@@ -43,6 +45,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
   const { toast } = useToast();
   const [language, setLanguage] = useState<string>("en");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cloudflareR2 = new CloudflareR2Storage();
 
   // Initialize language from profile preference
   useEffect(() => {
@@ -58,6 +61,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
       setDocumentName("");
       setFileUrl(null);
       setFileSize(0);
+      setFileType("");
       setUploadError(null);
       setUploadProgress(0);
     }
@@ -73,6 +77,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
     setDocumentContent("");
     setFileUrl(null);
     setFileSize(0);
+    setFileType("");
 
     // Check file size
     if (file.size > MAX_UPLOAD_SIZE) {
@@ -83,6 +88,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
     setIsUploading(true);
     setUploadProgress(0);
     setFileSize(file.size);
+    setFileType(file.type || "application/octet-stream");
 
     try {
       if (file.size <= MAX_INLINE_SIZE) {
@@ -120,47 +126,35 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
         
         reader.readAsText(file);
       } else {
-        // Large file: upload to Supabase Storage
+        // Large file: upload to Cloudflare R2
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           throw new Error("User not authenticated");
         }
 
-        // Create unique filename
-        const timestamp = Date.now();
-        const fileExt = file.name.split('.').pop();
-        const fileName = `course-uploads/${user.id}/${timestamp}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-
-        // Upload to Supabase Storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('user-uploads')
-          .upload(fileName, file, {
-            cacheControl: '3600',
-            upsert: false
-          });
-
-        if (uploadError) {
-          throw new Error(`Storage upload failed: ${uploadError.message}`);
+        // Check if Cloudflare R2 is configured
+        if (!cloudflareR2.isConfigured()) {
+          throw new Error("Cloudflare R2 storage is not configured. Please contact support.");
         }
 
-        // Get public URL
-        const { data: urlData } = supabase.storage
-          .from('user-uploads')
-          .getPublicUrl(fileName);
-
-        if (!urlData.publicUrl) {
-          throw new Error("Failed to get file URL");
-        }
-
-        setFileUrl(urlData.publicUrl);
-        setDocumentName(file.name);
-        setIsUploading(false);
-        setUploadProgress(100);
-
-        toast({
-          title: "Document Uploaded to Cloud",
-          description: `"${file.name}" has been uploaded successfully and will be processed during course generation.`,
+        // Upload to Cloudflare R2 with progress tracking
+        const uploadResult = await cloudflareR2.completeFileUpload(file, user.id, (progress) => {
+          setUploadProgress(progress);
         });
+        
+        if (uploadResult.success) {
+          setFileUrl(uploadResult.url);
+          setDocumentName(file.name);
+          setIsUploading(false);
+          setUploadProgress(100);
+
+          toast({
+            title: "Document Uploaded to Cloud",
+            description: `"${file.name}" has been uploaded successfully and will be processed during course generation.`,
+          });
+        } else {
+          throw new Error(uploadResult.error || "Failed to upload file to Cloudflare R2");
+        }
       }
     } catch (error) {
       console.error('File upload error:', error);
@@ -174,7 +168,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
         variant: "destructive"
       });
     }
-  }, [toast]);
+  }, [toast, cloudflareR2]);
 
   // Separate document removal handler
   const removeDocument = useCallback(() => {
@@ -182,6 +176,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
     setDocumentName("");
     setFileUrl(null);
     setFileSize(0);
+    setFileType("");
     setUploadError(null);
     setUploadProgress(0);
     toast({
@@ -348,8 +343,8 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
               
               {/* File Size Guidelines */}
               <div className="text-xs text-muted-foreground space-y-1">
-                <p>• Files &lt;=1MB: Processed inline for immediate context</p>
-                <p>• Files 1-5MB: Stored in cloud and processed during generation</p>
+                <p>• Files &lt;=500KB: Processed inline for immediate context</p>
+                <p>• Files 500KB-5MB: Stored in Cloudflare R2 and processed during generation</p>
                 <p>• Files &gt;5MB: Not supported</p>
               </div>
 
@@ -395,7 +390,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
                         <span className="text-sm font-medium text-foreground">{documentName}</span>
                         <p className="text-xs text-muted-foreground">
                           {fileSize > 0 ? `${(fileSize / 1024).toFixed(1)}KB` : ''}
-                          {fileUrl ? ' (Cloud Storage)' : ' (Inline Processing)'}
+                          {fileUrl ? ' (Cloudflare R2)' : ' (Inline Processing)'}
                         </p>
                       </div>
                     </div>
@@ -441,7 +436,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
                   <li>• Include your current skill level</li>
                   <li>• Mention any specific topics or concepts you want to focus on</li>
                   <li>• Upload relevant documents for enhanced context</li>
-                  <li>• Large documents are automatically stored in the cloud</li>
+                  <li>• Large documents are automatically stored in Cloudflare R2</li>
                 </ul>
               </CardContent>
             </Card>

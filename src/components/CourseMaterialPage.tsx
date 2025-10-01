@@ -9,6 +9,7 @@ import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 import { useCourses } from "@/hooks/useCourses";
 import { useAI } from "@/hooks/useAI";
 import { TestValidationModal } from "@/components/TestValidationModal";
+import { AIAvatarContainer } from "@/components/AIAvatarContainer";
 import { useToast } from "@/hooks/use-toast";
 
 interface CourseModule {
@@ -50,7 +51,7 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
         
         if (course && course.modules && Array.isArray(course.modules)) {
           // Transform the modules to include expanded state
-          const transformedModules = course.modules.map((module: any, index: number) => ({
+          const transformedModules = course.modules.map((module: CourseModule, index: number) => ({
             ...module,
             expanded: index === 0 // Expand first module by default
           }));
@@ -414,6 +415,14 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
                 </Button>
               </div>
             </Card>
+
+            {/* AI Avatar Container */}
+            <AIAvatarContainer
+              courseId={courseId}
+              courseTitle={courseTitle}
+              content={modules.map(m => `${m.title}: ${m.content}`).join('\n\n')}
+              language="en"
+            />
 
             {/* Course Modules */}
             <div className="space-y-4">

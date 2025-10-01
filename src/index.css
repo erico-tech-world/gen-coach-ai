@@ -6,26 +6,26 @@
 
 @layer base {
   :root {
-    /* Core App Colors - Modern AI Theme */
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
+    /* Core App Colors - Light Theme */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
 
-    --card: 240 10% 5.9%;
-    --card-foreground: 0 0% 98%;
+    --card: 0 0% 98%;
+    --card-foreground: 240 10% 3.9%;
 
-    --popover: 240 10% 5.9%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 0 0% 98%;
+    --popover-foreground: 240 10% 3.9%;
 
     /* AI Brand Colors */
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 98%;
     --primary-glow: 217 91% 70%;
 
-    --secondary: 240 5% 15%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
 
-    --muted: 240 5% 10%;
-    --muted-foreground: 240 5% 65%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.9% 46.1%;
 
     --accent: 142 76% 36%;
     --accent-foreground: 0 0% 98%;
@@ -33,15 +33,15 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 240 5% 15%;
-    --input: 240 5% 15%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
     --ring: 217 91% 60%;
 
     /* AI App Specific Tokens */
     --ai-gradient: linear-gradient(135deg, hsl(217 91% 60%), hsl(142 76% 36%));
     --neural-glow: 0 0 30px hsl(217 91% 60% / 0.3);
     --course-card-glow: 0 4px 20px hsl(217 91% 60% / 0.1);
-    --floating-shadow: 0 10px 25px hsl(240 10% 0% / 0.2);
+    --floating-shadow: 0 10px 25px hsl(240 10% 0% / 0.1);
     
     /* Animation Tokens */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -50,19 +50,12 @@
     --radius: 0.75rem;
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 

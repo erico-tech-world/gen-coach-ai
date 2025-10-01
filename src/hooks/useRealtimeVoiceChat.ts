@@ -2,6 +2,67 @@ import { useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+// Web Speech API type declarations
+declare global {
+  interface Window {
+    SpeechRecognition: typeof SpeechRecognition;
+    webkitSpeechRecognition: typeof SpeechRecognition;
+  }
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
+  onerror: ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any) | null;
+  onend: ((this: SpeechRecognition, ev: Event) => any) | null;
+  start(): void;
+  stop(): void;
+}
+
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+}
+
+interface SpeechRecognitionResultList {
+  readonly length: number;
+  item(index: number): SpeechRecognitionResult;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionResult {
+  readonly length: number;
+  item(index: number): SpeechRecognitionAlternative;
+  [index: number]: SpeechRecognitionAlternative;
+  isFinal: boolean;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
+// Memory management interface
+interface MemoryManager {
+  addMessage: (message: { role: 'user' | 'assistant'; content: string; metadata?: Record<string, unknown> }) => Promise<void>;
+  getConversationContext: (maxMessages?: number) => string;
+  updateSessionMetadata: (metadata: Record<string, unknown>) => Promise<void>;
+}
+
+// Memory manager instance
+let memoryManager: MemoryManager | null = null;
+
+// Set memory manager from external component
+export const setMemoryManager = (manager: MemoryManager) => {
+  memoryManager = manager;
+};
+
 interface VoiceChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -17,7 +78,7 @@ export function useRealtimeVoiceChat() {
   const [currentTranscript, setCurrentTranscript] = useState('');
   const { toast } = useToast();
   
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<typeof SpeechRecognition | null>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
 
   const connect = useCallback(async () => {
@@ -49,7 +110,7 @@ export function useRealtimeVoiceChat() {
         console.log('Speech recognition started');
       };
       
-      recognitionRef.current.onresult = (event: any) => {
+      recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
         const transcript = event.results[0][0].transcript;
         setCurrentTranscript(transcript);
         
@@ -63,11 +124,20 @@ export function useRealtimeVoiceChat() {
         
         setMessages(prev => [...prev, userMessage]);
         
+        // Add to memory if manager is available
+        if (memoryManager) {
+          memoryManager.addMessage({
+            role: 'user',
+            content: transcript,
+            metadata: { context: 'voice_input' }
+          });
+        }
+        
         // Process AI response using the actual AI service
         handleAIResponse(transcript);
       };
       
-      recognitionRef.current.onerror = (event: any) => {
+      recognitionRef.current.onerror = (event: SpeechRecognitionErrorEvent) => {
         console.error('Speech recognition error:', event.error);
         if (event.error !== 'no-speech') {
           toast({

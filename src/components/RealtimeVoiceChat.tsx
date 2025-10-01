@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Mic, MicOff, Phone, PhoneOff, Send, Volume2 } from "lucide-react";
-import { useRealtimeVoiceChat } from "@/hooks/useRealtimeVoiceChat";
+import { Mic, MicOff, Phone, PhoneOff, Send, Volume2, Brain, History, Trash2 } from "lucide-react";
+import { useRealtimeVoiceChat, setMemoryManager } from "@/hooks/useRealtimeVoiceChat";
+import { useAIVoiceChatMemory } from "@/hooks/useAIVoiceChatMemory";
 import { Badge } from "@/components/ui/badge";
 
 interface RealtimeVoiceChatProps {
@@ -13,6 +14,8 @@ interface RealtimeVoiceChatProps {
 
 export function RealtimeVoiceChat({ onUnmount }: RealtimeVoiceChatProps) {
   const [textInput, setTextInput] = useState("");
+  const [showMemory, setShowMemory] = useState(false);
+  
   const {
     messages,
     isConnected,
@@ -26,6 +29,17 @@ export function RealtimeVoiceChat({ onUnmount }: RealtimeVoiceChatProps) {
     sendTextMessage
   } = useRealtimeVoiceChat();
 
+  const {
+    memoryBuffer,
+    getConversationContext,
+    getConversationSummary,
+    addMessage,
+    updateSessionMetadata,
+    clearSession,
+    messageCount,
+    lastMessage
+  } = useAIVoiceChatMemory();
+
   // Handle component unmount to terminate voice chat session
   useEffect(() => {
     return () => {
@@ -36,8 +50,24 @@ export function RealtimeVoiceChat({ onUnmount }: RealtimeVoiceChatProps) {
     };
   }, [onUnmount]); // Remove disconnect from dependencies to prevent unwanted calls
 
+  // Connect memory manager to voice chat hook
+  useEffect(() => {
+    setMemoryManager({
+      addMessage,
+      getConversationContext,
+      updateSessionMetadata
+    });
+  }, [addMessage, getConversationContext, updateSessionMetadata]);
+
   const handleSendText = () => {
     if (textInput.trim()) {
+      // Add user message to memory
+      addMessage({
+        role: 'user',
+        content: textInput.trim(),
+        metadata: { context: 'text_input' }
+      });
+      
       sendTextMessage(textInput.trim());
       setTextInput("");
     }
@@ -59,7 +89,34 @@ export function RealtimeVoiceChat({ onUnmount }: RealtimeVoiceChatProps) {
           <Badge variant={isConnected ? "default" : "secondary"}>
             {isConnected ? "Connected" : "Disconnected"}
           </Badge>
+          {messageCount > 0 && (
+            <Badge variant="outline" className="ml-auto">
+              {messageCount} messages
+            </Badge>
+          )}
         </CardTitle>
+        
+        {/* Memory Management Buttons */}
+        <div className="flex items-center gap-2 mt-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowMemory(!showMemory)}
+            className="text-xs"
+          >
+            <Brain className="w-3 h-3 mr-1" />
+            Memory
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearSession}
+            className="text-xs text-destructive hover:text-destructive"
+          >
+            <Trash2 className="w-3 h-3 mr-1" />
+            Clear
+          </Button>
+        </div>
       </CardHeader>
 
       <CardContent className="flex-1 flex flex-col gap-4">
@@ -77,6 +134,32 @@ export function RealtimeVoiceChat({ onUnmount }: RealtimeVoiceChatProps) {
               <Phone className="w-4 h-4 mr-2" />
               Connect to Voice Chat
             </Button>
+          </div>
+        )}
+
+        {/* Memory Display */}
+        {showMemory && (
+          <div className="bg-muted/20 border border-border rounded-lg p-4 max-h-40 overflow-y-auto">
+            <div className="flex items-center gap-2 mb-2">
+              <History className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">Conversation Memory</span>
+            </div>
+            {memoryBuffer.length > 0 ? (
+              <div className="space-y-2">
+                {memoryBuffer.map((msg, index) => (
+                  <div key={index} className="text-xs">
+                    <span className={`font-medium ${msg.role === 'user' ? 'text-primary' : 'text-accent'}`}>
+                      {msg.role === 'user' ? 'You' : 'AI'}:
+                    </span>
+                    <span className="text-muted-foreground ml-2">
+                      {msg.content.length > 100 ? `${msg.content.substring(0, 100)}...` : msg.content}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">No conversation history yet.</p>
+            )}
           </div>
         )}
 

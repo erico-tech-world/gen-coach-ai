@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Brain, Mail, Lock, Loader2, Sparkles } from "lucide-react";
+import { Brain, Mail, Lock, Loader2, Sparkles, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface AuthPageProps {
@@ -15,6 +15,7 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
   const { toast } = useToast();
@@ -207,13 +208,32 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">Password</label>
-                  <Input
-                    type="password"
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="pr-10"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <span className="sr-only">
+                        {showPassword ? "Hide password" : "Show password"}
+                      </span>
+                    </Button>
+                  </div>
                 </div>
                 <Button type="submit" className="w-full bg-ai-gradient hover:shadow-neural-glow transition-all" disabled={isLoading}>
                   {isLoading ? (
@@ -266,13 +286,32 @@ export function AuthPage({ onAuthSuccess }: AuthPageProps) {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">Password</label>
-                  <Input
-                    type="password"
-                    placeholder="Create a password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Create a password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="pr-10"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <span className="sr-only">
+                        {showPassword ? "Hide password" : "Show password"}
+                      </span>
+                    </Button>
+                  </div>
                 </div>
                 <Button type="submit" className="w-full bg-ai-gradient hover:shadow-neural-glow transition-all" disabled={isLoading}>
                   {isLoading ? (

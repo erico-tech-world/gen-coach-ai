@@ -1,394 +1,661 @@
-# GEN-COACH AI Documentation
+# GEN-COACH AI - Complete Documentation
+
+## Table of Contents
+1. [Project Overview](#project-overview)
+2. [User Guide](#user-guide)
+3. [Technical Documentation](#technical-documentation)
+4. [API Reference](#api-reference)
+5. [Deployment Guide](#deployment-guide)
+6. [Troubleshooting](#troubleshooting)
+
+---
 
 ## Project Overview
 
-GEN-COACH is an AI-powered educational platform that generates personalized courses using advanced AI models. The platform features text-to-speech capabilities, real-time voice chat, and multi-language support.
+**GEN-COACH AI** is an advanced AI-powered educational platform that revolutionizes learning through personalized course generation, interactive voice narration, and real-time AI assistance. The platform combines cutting-edge AI models with intuitive user interfaces to create an engaging, adaptive learning experience.
 
-## Tech Stack
+### Key Features
+- 🤖 **AI Course Generation**: Create personalized courses using advanced AI models
+- 🎤 **Multi-Model Text-to-Speech**: High-quality voice narration with multiple TTS engines
+- 💬 **Real-time Voice Chat**: Interactive AI assistant with persistent memory
+- 🌍 **Multi-language Support**: Support for English, French, Pidgin, Igbo, and more
+- 📱 **Responsive Design**: Optimized for desktop and mobile devices
+- 🔐 **Secure Authentication**: Email/password and Google OAuth integration
+- 📊 **Progress Tracking**: Visual progress indicators and course management
+- 🎯 **AI Avatar Narration**: Interactive course narration with session persistence
 
-### Frontend
-- **React 18** with TypeScript
-- **Vite** for build tooling
-- **Tailwind CSS** for styling
-- **shadcn/ui** for UI components
-- **TanStack Query** for data fetching
-- **React Router DOM** for routing
-- **Vercel** for deployment
+---
 
-### Backend
-- **Supabase** (PostgreSQL, Auth, Storage, Edge Functions)
-- **OpenRouter API** (DeepSeek R1 model for course generation)
-- **Groq TTS API** (PlayAI model for text-to-speech)
-- **Hugging Face API** (fallback TTS for unsupported languages)
+## User Guide
 
-### AI/ML Services
-- **Course Generation**: OpenRouter API with DeepSeek R1
-- **Text-to-Speech**: Groq TTS (primary) + Hugging Face (fallback)
-- **Voice Chat**: Custom Edge Function with real-time capabilities
-- **Translation**: Hugging Face models (NLLB, Masakhane)
+### Getting Started
 
-## Architecture
+#### 1. Account Creation
+- **Sign Up**: Create an account using email/password or Google OAuth
+- **Email Verification**: Verify your email address for account activation
+- **Profile Setup**: Your profile is automatically created with your name and preferences
+
+#### 2. Creating Your First Course
+1. Click the **"Create New Course"** button on the dashboard
+2. Enter your course topic or subject
+3. Optionally upload supporting documents (PDF, DOC, TXT, MD)
+4. Select your preferred language
+5. Click **"Generate Course"** and wait for AI processing
+6. Your personalized course will be created with structured modules
+
+#### 3. Course Features
+
+##### Course Structure
+- **Title**: AI-generated professional course title
+- **Modules**: Structured learning modules with clear objectives
+- **Progress Tracking**: Visual progress indicators
+- **Tests**: AI-generated assessments for each module
+- **Resources**: YouTube links and Wikipedia references
+
+##### Learning Modes
+- **Lecture Mode**: AI avatar narrates course content with natural speech
+- **Interactive Mode**: Click through modules at your own pace
+- **Voice Chat**: Ask questions to the AI assistant in real-time
+
+#### 4. Voice Features
+
+##### AI Avatar Narration
+- **Start/Pause/Resume**: Control narration playback
+- **Progress Tracking**: Visual indicators show current position
+- **Live Subtitles**: Real-time caption display
+- **Session Persistence**: Resume from where you left off
+
+##### Real-time Voice Chat
+- **Voice Input**: Speak naturally to the AI assistant
+- **Memory Persistence**: AI remembers conversation context
+- **Multi-language Support**: Chat in your preferred language
+- **Intelligent Responses**: Context-aware AI responses
+
+#### 5. Settings and Preferences
+- **Language Selection**: Choose from supported languages
+- **Theme Toggle**: Switch between light and dark modes
+- **Profile Management**: Update your name and preferences
+- **Account Management**: Sign out and manage your account
+
+### Supported Languages
+- **English (en)**: Full support with all features
+- **French (fr)**: Complete localization
+- **Pidgin (pcm)**: Regional language support
+- **Igbo (ig)**: African language support
+- **Additional Languages**: 50+ languages via MeloTTS
+
+### File Upload Support
+- **Text Files**: .txt, .md
+- **Documents**: .doc, .docx
+- **PDFs**: .pdf
+- **Maximum Size**: 5MB per file
+- **Processing**: AI analyzes content to enhance course generation
+
+---
+
+## Technical Documentation
+
+### Architecture Overview
+
+GEN-COACH AI follows a modern, scalable architecture with clear separation of concerns:
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │   Backend       │    │   AI Services   │
+│   (React/TS)    │◄──►│   (Supabase)    │◄──►│   (APIs)        │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+### Tech Stack
+
+#### Frontend
+- **React 18** with TypeScript for type safety
+- **Vite** for fast development and building
+- **Tailwind CSS** for utility-first styling
+- **shadcn/ui** for accessible UI components
+- **TanStack Query** for server state management
+- **React Router DOM** for client-side routing
+- **Lucide React** for consistent iconography
+
+#### Backend
+- **Supabase** as Backend-as-a-Service
+  - PostgreSQL database with Row Level Security
+  - Authentication and user management
+  - Real-time subscriptions
+  - Edge Functions for serverless compute
+  - Storage for file uploads
+
+#### AI/ML Services
+- **OpenRouter API**: DeepSeek R1 model for course generation
+- **Multi-Model TTS System**:
+  - MaskGCT: Real-time, low-latency TTS
+  - VibeVoice: High-quality, long-form content
+  - Chatterbox: Expressive, conversational TTS
+  - MeloTTS: Multilingual support (50+ languages)
+  - Groq TTS: Legacy fallback
+- **Hugging Face API**: Translation and fallback TTS
+- **Custom Edge Functions**: Real-time voice chat and processing
 
 ### Database Schema
 
-#### Tables
-1. **profiles** - User profile information
-   - `id` (UUID, primary key)
-   - `full_name` (text)
-   - `avatar_url` (text)
-   - `language_preference` (varchar(10), default: 'en')
-   - `created_at` (timestamp)
-   - `updated_at` (timestamp)
+#### Core Tables
 
-2. **courses** - Generated course content
-   - `id` (UUID, primary key)
-   - `user_id` (UUID, foreign key to profiles.id)
-   - `title` (text)
-   - `topic` (text)
-   - `modules` (jsonb)
-   - `youtube_links` (jsonb)
-   - `wikipedia_data` (jsonb)
-   - `progress` (integer, default: 0)
-   - `schedule` (text, default: 'Self-paced')
-   - `additional_details` (text)
-   - `created_at` (timestamp)
-   - `updated_at` (timestamp)
+##### `profiles`
+```sql
+CREATE TABLE profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID UNIQUE NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  avatar_url TEXT,
+  language_preference VARCHAR(10) DEFAULT 'en',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
 
-### Authentication Flow
+##### `courses`
+```sql
+CREATE TABLE courses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  topic TEXT,
+  modules JSONB DEFAULT '[]'::jsonb,
+  schedule TEXT DEFAULT 'Self-paced',
+  progress INTEGER DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
+  additional_details TEXT,
+  youtube_links JSONB DEFAULT '[]'::jsonb,
+  wikipedia_data JSONB DEFAULT '{}'::jsonb,
+  file_url TEXT,
+  file_size INTEGER,
+  file_type TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
 
-1. **Sign Up**: Email/password or Google OAuth
-2. **Email Verification**: Automatic redirect to confirmation page
-3. **Profile Creation**: Automatic profile row creation via database trigger
-4. **Language Preference**: Stored in profiles table, used throughout the app
+##### `tts_sessions`
+```sql
+CREATE TABLE tts_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
+  session_data JSONB NOT NULL DEFAULT '{}',
+  current_position INTEGER DEFAULT 0,
+  is_paused BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
 
-### Course Generation Flow
+##### `ai_chat_memory`
+```sql
+CREATE TABLE ai_chat_memory (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL,
+  messages JSONB NOT NULL DEFAULT '[]',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
 
-1. **User Input**: Topic + optional document upload
-2. **Language Selection**: User's preferred language or override
-3. **AI Processing**: OpenRouter API generates course content
-4. **Database Storage**: Course saved with language metadata
-5. **UI Update**: New course appears in user's list
+### Security Implementation
 
-### Text-to-Speech Flow
+#### Row Level Security (RLS)
+All tables implement RLS policies ensuring users can only access their own data:
 
-1. **Language Detection**: Check user's language preference
-2. **Primary TTS**: Try Groq TTS if language supported
-3. **Fallback TTS**: Use Hugging Face models for unsupported languages
-4. **Audio Processing**: Chunk text, generate audio, play sequentially
-5. **Browser Fallback**: Use browser's SpeechSynthesis API as last resort
+```sql
+-- Example RLS policy for courses
+CREATE POLICY "Users can view their own courses" ON courses
+  FOR SELECT USING (auth.uid() = user_id);
 
-## Key Features
+CREATE POLICY "Users can insert their own courses" ON courses
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+```
 
-### Multi-Language Support
-- **Supported Languages**: English (en), French (fr), Pidgin (pcm), Igbo (ig)
-- **Language Selection**: Available in Settings and Course Creation
-- **TTS Integration**: Automatic language-appropriate speech synthesis
-- **Translation Pipeline**: Text generation → translation → TTS
+#### Authentication Flow
+1. **Email/Password**: Standard Supabase Auth with email verification
+2. **Google OAuth**: Third-party authentication with profile sync
+3. **Session Management**: Automatic session refresh and persistence
+4. **Profile Creation**: Automatic profile creation on signup
 
-### Course Management
-- **AI Generation**: Personalized courses based on user input
-- **Document Upload**: Support for .txt, .md, .doc, .docx, .pdf files
-- **Progress Tracking**: Visual progress indicators
-- **Course Deletion**: Confirmation dialog with database cleanup
+### Core Components
 
-### Voice Features
-- **Lecture Mode**: AI coach speaks course content naturally
-- **Symbol Filtering**: Removes emojis/symbols for natural speech
-- **Chunking**: Breaks long text into manageable audio segments
-- **Real-time Voice Chat**: Interactive AI assistant
+#### Frontend Architecture
 
-### Authentication & Security
-- **Email/Password**: Standard Supabase Auth
-- **Google OAuth**: Third-party authentication
-- **Email Verification**: Required for new accounts
-- **Password Reset**: Forgot password flow
-- **Row Level Security**: Database-level access control
-
-## File Structure
-
+##### Component Structure
 ```
 src/
 ├── components/
-│   ├── AuthPage.tsx              # Authentication UI
-│   ├── CourseCreationOverlay.tsx # Course generation modal
-│   ├── CourseMaterialPage.tsx    # Course viewing/lecture
+│   ├── AuthPage.tsx              # Authentication interface
 │   ├── HomeScreen.tsx            # Main dashboard
-│   ├── Navbar.tsx                # Navigation component
-│   ├── RealtimeVoiceChat.tsx     # Voice chat interface
-│   └── Settings.tsx              # User settings
+│   ├── CourseCreationOverlay.tsx # Course generation modal
+│   ├── CourseMaterialPage.tsx   # Course viewing interface
+│   ├── RealtimeVoiceChat.tsx    # Voice chat interface
+│   ├── AIAvatarContainer.tsx    # AI avatar narration
+│   ├── SettingsOverlay.tsx      # User settings
+│   └── ui/                      # Reusable UI components
 ├── hooks/
-│   ├── useAI.ts                  # AI service interactions
-│   ├── useCourses.ts             # Course management
-│   ├── useProfile.ts             # User profile management
-│   ├── useTextToSpeech.ts        # TTS functionality
-│   └── use-toast.ts              # Toast notifications
-├── integrations/
-│   └── supabase/
-│       └── client.ts             # Supabase client
-└── types/
-    └── index.ts                  # TypeScript definitions
-
-supabase/
-├── functions/
-│   ├── generate-course/          # Course generation
-│   ├── text-to-speech/           # Groq TTS
-│   ├── fallback-tts/             # Hugging Face TTS
-│   └── realtime-voice-chat/      # Voice chat
-└── migrations/
-    ├── 20250821090001_add_course_uniqueness.sql
-    ├── 20250821090002_add_language_preference.sql
-    └── 20250821090003_prevent_duplicate_courses.sql
+│   ├── useAuth.ts               # Authentication management
+│   ├── useAI.ts                 # AI course generation
+│   ├── useCourses.ts            # Course data management
+│   ├── useRealtimeTTS.ts        # Multi-model TTS system
+│   ├── useAIVoiceChatMemory.ts  # Voice chat memory
+│   └── useTextToSpeech.ts       # TTS orchestration
+├── pages/
+│   ├── Index.tsx                # Main application entry
+│   ├── ForgotPassword.tsx       # Password reset
+│   ├── ResetPassword.tsx        # Password reset confirmation
+│   └── VerifyEmail.tsx          # Email verification
+└── integrations/
+    └── supabase/
+        ├── client.ts            # Supabase client configuration
+        └── types.ts             # TypeScript type definitions
 ```
 
-## Recent Updates & Fixes
+#### Key Hooks and Their Functions
 
-### Storage Migration Error Fix (Latest)
-- **Issue**: `42501: must be owner of table objects` error when running storage bucket migration, followed by `ERROR: 42601: syntax error at or near "IF"` due to nested function definitions.
-- **Root Cause**: User running migration lacked `OWNER` privileges on `storage.objects` table. Additionally, PostgreSQL doesn't allow nested function definitions, causing syntax errors. **CRITICAL ISSUE**: Even `SECURITY DEFINER` functions cannot modify the `storage.objects` system table.
-- **Fix**: Implemented alternative approach that completely avoids ownership restrictions by not modifying system tables directly. Created helper functions and manual policy setup process.
-- **Implementation**: 
-  - Created `cleanup_orphaned_files()` function that uses `storage.delete()` instead of direct table access
-  - Created `can_access_file()` function for file access validation
-  - Created `validate_file_upload()` function for upload validation
-  - Migration creates helper functions and triggers
-  - Storage policies are created manually in Supabase Dashboard to bypass ownership restrictions
-- **Files Modified**: `supabase/migrations/20250823000001_create_storage_bucket_and_policies.sql`
-- **Additional Files**: `MANUAL_STORAGE_SETUP_GUIDE.md` - Step-by-step manual setup instructions
+##### `useAI.ts`
+- **Purpose**: Course generation using OpenRouter API
+- **Features**:
+  - Idempotency protection against duplicate requests
+  - File context integration for enhanced content
+  - Error handling and user feedback
+  - Request deduplication and rate limiting
 
-### AI Voice Chat Connection Flow Enhancement (Latest)
-- **Issue**: Users reported being redirected after connecting to voice chat. Additionally, users were getting disconnected immediately after connection, making the Start Recording button inactive.
-- **Root Cause**: Connection flow needed better user feedback and immediate interaction options. Additionally, the return arrow function was calling `handleVoiceChatToggle(false)` which immediately closed the voice chat. The connection logic was also failing due to race conditions and improper state management. **CRITICAL ISSUE**: The `useEffect` cleanup function in `RealtimeVoiceChat` component was calling `disconnect()` on every re-render, causing immediate disconnection.
-- **Fix**: Enhanced connection experience with better state management and user guidance. Fixed the return arrow to only close voice chat when actually navigating away, not during normal operations. Improved connection logic to prevent immediate disconnection. **FIXED**: Removed `disconnect` from `useEffect` dependencies to prevent unwanted disconnections.
-- **Implementation**:
-  - Added connecting state with progress feedback
-  - Enhanced connection success notification
-  - Added welcome message from AI assistant
-  - Provided immediate interaction options (speak/type) after connection
-  - Improved error handling and user guidance
-  - Fixed return arrow navigation logic to prevent unwanted closures
-  - Improved connection state management to prevent race conditions
-  - Enhanced recording functionality to work properly after connection
-  - **FIXED**: Removed `useEffect` cleanup that was causing immediate disconnection
-  - Added debug logging to track connection state changes
-- **Files Modified**: 
-  - `src/hooks/useRealtimeVoiceChat.ts`
-  - `src/components/RealtimeVoiceChat.tsx`
-  - `src/components/HomeScreen.tsx`
-**Impact**: Users now stay on voice chat page and can interact immediately after connection without being redirected or disconnected
+##### `useRealtimeTTS.ts`
+- **Purpose**: Multi-model TTS orchestration
+- **Features**:
+  - Circuit breaker pattern for fault tolerance
+  - Priority-based model selection
+  - Token-bucket rate limiting
+  - Automatic failover between models
+  - Session state management
 
-### Upload Button Functionality Fix
-- **Issue**: Upload button in CourseCreationOverlay did not open OS file picker
-- **Root Cause**: Button click event handling was not properly wired to file input
-- **Fix**: 
-  - Added `useRef` for file input element
-  - Created dedicated `handleUploadClick` function
-  - Removed unnecessary `Label` wrapper that was interfering with click events
-  - Ensured proper button click → file input trigger flow
-- **Implementation**: Direct button click handler that programmatically triggers file input
+##### `useAIVoiceChatMemory.ts`
+- **Purpose**: Persistent conversation memory
+- **Features**:
+  - Session persistence across browser refreshes
+  - Message history with metadata
+  - Context-aware conversation summaries
+  - Search functionality within conversations
 
-### Duplicate Course Generation Prevention (Enhanced)
-- **Issue**: Multiple identical courses created per generation (2-3 duplicates)
-- **Root Cause**: Race condition between Edge Function database insertion and client-side `createCourse` call
-- **Fix**: 
-  - **Frontend**: Removed client-side `createCourse` call since Edge Function already handles database insertion
-  - **Backend**: Enhanced idempotency checking with request ID tracking
-  - **Database**: Added trigger-based duplicate prevention (within 1 hour window)
-- **Implementation**: 
-  - Multi-layered protection: request ID tracking + recent topic checking + database triggers
-  - Edge Function now returns existing course ID if duplicate detected
-  - Client only calls `onCourseCreated` callback for UI updates
+### Edge Functions
 
-### Language-Aware TTS
-- **Issue**: AI coach didn't speak in user's chosen language during learning
-- **Root Cause**: TTS system didn't respect user's language preference
-- **Solution Implemented**:
-  - **Language Detection**: Integrated `useProfile` to access `languagePreference`
-  - **Multi-TTS Support**: Groq TTS for supported languages, Hugging Face fallback for others
-  - **Fallback Chain**: Groq → Hugging Face → Browser SpeechSynthesis
-  - **New Edge Function**: Created `fallback-tts` for unsupported languages
+#### Course Generation (`generate-course`)
+```typescript
+// Main course generation function
+export async function generateCourse(prompt: string, userId: string, userName: string) {
+  // 1. Validate input and user authentication
+  // 2. Call OpenRouter API with DeepSeek R1 model
+  // 3. Process and structure course content
+  // 4. Save to database with proper error handling
+  // 5. Return structured course data
+}
+```
 
-### Authentication Enhancements
-- **Email Verification**: Automatic redirect to confirmation page
-- **Google OAuth**: Standard Google authentication
-- **Password Reset**: Complete forgot password flow
-- **Profile Consistency**: Automatic profile creation on signup
+#### Text-to-Speech Functions
+- **`maskgct-tts`**: Real-time TTS generation
+- **`vibevoice-tts`**: Long-form content TTS
+- **`chatterbox-tts`**: Expressive TTS
+- **`melotts-tts`**: Multilingual TTS
+- **`fallback-tts`**: Hugging Face fallback
 
-### Settings & UI Improvements
-- **Responsive Design**: Mobile-first approach across all components
-- **Language Selector**: Dropdown in Settings and Course Creation
-- **User Naming**: First name display from full name
-- **Modern UI**: Clean, consistent design patterns
+#### Voice Chat (`realtime-voice-chat`)
+```typescript
+// Real-time voice chat processing
+export async function processVoiceChat(audioData: string, sessionId: string) {
+  // 1. Convert audio to text using speech recognition
+  // 2. Process with AI model for response generation
+  // 3. Convert response to speech
+  // 4. Update conversation memory
+  // 5. Return audio response
+}
+```
 
-### TTS Audio Playback & AI Voice Chat Fixes (Latest)
-- **Issue**: Multiple critical issues affecting user experience: TTS audio playback errors, AI voice chat not responding properly, and file upload 500 errors due to payload size limits.
-- **Root Cause**: 
-  - **TTS Audio**: `InvalidCharacterError: Failed to execute 'atob'` due to improper base64 encoding validation
-  - **AI Voice Chat**: Voice chat was using placeholder responses instead of calling actual AI service
-  - **File Upload**: Payload size limits (1MB) were too restrictive for document content
-- **Fix**: Comprehensive fixes for all identified issues with improved error handling and fallbacks.
-- **Implementation**:
-  - **TTS Audio Fix**: Added proper base64 validation, error handling, and automatic fallback to browser speech synthesis
-  - **AI Voice Chat Fix**: Fixed voice chat to properly call AI service instead of placeholder responses
-  - **File Upload Fix**: Increased payload size limits and improved content truncation logic
-  - **Rate Limiting**: Better handling of Groq TTS rate limits with automatic fallback
-  - **Error Recovery**: Graceful degradation when services fail
-- **Files Modified**: 
-  - `src/hooks/useTextToSpeech.ts`
-  - `src/hooks/useRealtimeVoiceChat.ts`
-  - `src/components/CourseCreationOverlay.tsx`
-  - `supabase/functions/generate-course/index.ts`
-**Impact**: Users can now properly listen to AI responses, voice chat works with real AI responses, and file uploads work without 500 errors
+### AI Model Integration
 
-### Course Title & Content Cleaning for Better UX (Latest)
-- **Issue**: Course titles and content were displaying technical references like "using the uploaded file", "reference document", and raw file URLs, creating a poor user experience and untidy interface.
-- **Root Cause**: The AI generation was including technical context and file references in user-facing content, making the UI unprofessional and confusing.
-- **Fix**: Implemented smart content cleaning that maintains AI context for better coaching while presenting clean, professional content to users.
-- **Implementation**:
-  - **Smart Prompt Engineering**: Enhanced prompts with clear instructions to generate clean titles without technical references
-  - **Content Cleaning**: Added post-processing to remove technical details, URLs, and file references from titles and module content
-  - **AI Context Preservation**: AI still gets file information for enhanced content generation but doesn't expose it in UI
-  - **Professional Presentation**: Course titles and content now display clean, user-friendly information
-- **Files Modified**: 
-  - `src/components/CourseCreationOverlay.tsx`
-  - `supabase/functions/generate-course/index.ts`
-**Impact**: Users now see professional, clean course titles and content while AI maintains access to uploaded documents for better coaching quality
+#### Course Generation Pipeline
+1. **Input Processing**: User prompt + optional file context
+2. **AI Generation**: OpenRouter API with DeepSeek R1 model
+3. **Content Structuring**: Parse and organize course modules
+4. **Resource Enhancement**: Add YouTube links and Wikipedia data
+5. **Database Storage**: Save structured course data
 
-### Course Deletion & AI Chat Display Fixes (Latest)
-- **Issue**: Multiple critical issues affecting core functionality: course deletion failing with storage.delete() errors, and AI chat displaying raw text formats and technical context making the UI untidy.
-- **Root Cause**: 
-  - **Course Deletion**: The database trigger was calling non-existent `storage.delete()` function, and frontend wasn't properly handling file cleanup
-  - **AI Chat Display**: AI responses were including technical references, file information, and raw text formats in user-facing content
-- **Fix**: Comprehensive fixes for course deletion functionality and AI chat display improvements.
-- **Implementation**:
-  - **Course Deletion Fix**: Fixed database trigger to use proper logging instead of non-existent functions, enhanced frontend to handle file cleanup using Supabase Storage API
-  - **AI Chat Display Fix**: Added content cleaning functions to remove technical references, file information, and raw text formats from AI responses
-  - **Enhanced Prompts**: Improved AI system prompts to generate cleaner, more user-friendly responses
-  - **Content Processing**: Implemented both frontend and backend content cleaning for consistent user experience
-- **Files Modified**: 
-  - `supabase/migrations/20250823000001_create_storage_bucket_and_policies.sql`
-  - `src/hooks/useCourses.ts`
-  - `src/hooks/useRealtimeVoiceChat.ts`
-  - `supabase/functions/realtime-voice-chat/index.ts`
-**Impact**: Users can now successfully delete courses with proper file cleanup, and AI chat provides clean, professional responses without technical clutter
+#### TTS Model Selection Algorithm
+```typescript
+// Intelligent model selection based on content and language
+function selectTTSModel(text: string, language: string): TTSModel {
+  // 1. Check language support for each model
+  // 2. Consider content length and type
+  // 3. Check circuit breaker status
+  // 4. Apply priority-based selection
+  // 5. Return optimal model for the request
+}
+```
 
-## Environment Variables
+---
 
-### Required
+## API Reference
+
+### Supabase Edge Functions
+
+#### `generate-course`
+**Purpose**: Generate AI-powered courses using OpenRouter API
+
+**Request**:
+```typescript
+{
+  prompt: string;
+  userId: string;
+  userName: string;
+  language?: string;
+  fileUrl?: string;
+  fileSize?: number;
+}
+```
+
+**Response**:
+```typescript
+{
+  success: boolean;
+  courseId: string;
+  title: string;
+  modules: CourseModule[];
+  youtubeLinks: string[];
+  wikipediaData: object;
+}
+```
+
+#### `text-to-speech`
+**Purpose**: Generate speech from text using Groq TTS
+
+**Request**:
+```typescript
+{
+  text: string;
+  language?: string;
+}
+```
+
+**Response**:
+```typescript
+{
+  success: boolean;
+  audio: string; // Base64 encoded audio
+  error?: string;
+}
+```
+
+#### `realtime-voice-chat`
+**Purpose**: Process real-time voice chat interactions
+
+**Request**:
+```typescript
+{
+  audioData: string; // Base64 encoded audio
+  sessionId: string;
+  language?: string;
+}
+```
+
+**Response**:
+```typescript
+{
+  success: boolean;
+  audioResponse: string; // Base64 encoded audio response
+  transcript: string;
+  error?: string;
+}
+```
+
+### Database API
+
+#### Courses Table
+```typescript
+// Create course
+const { data, error } = await supabase
+  .from('courses')
+  .insert({
+    user_id: userId,
+    title: courseTitle,
+    topic: topic,
+    modules: modules,
+    progress: 0
+  });
+
+// Get user courses
+const { data, error } = await supabase
+  .from('courses')
+  .select('*')
+  .eq('user_id', userId)
+  .order('created_at', { ascending: false });
+
+// Update course progress
+const { data, error } = await supabase
+  .from('courses')
+  .update({ progress: newProgress })
+  .eq('id', courseId);
+```
+
+#### TTS Sessions Table
+```typescript
+// Save TTS session
+const { data, error } = await supabase
+  .from('tts_sessions')
+  .upsert({
+    user_id: userId,
+    course_id: courseId,
+    session_data: sessionData,
+    current_position: position,
+    is_paused: isPaused
+  });
+
+// Retrieve TTS session
+const { data, error } = await supabase
+  .from('tts_sessions')
+  .select('*')
+  .eq('user_id', userId)
+  .eq('course_id', courseId)
+  .single();
+```
+
+---
+
+## Deployment Guide
+
+### Prerequisites
+- Node.js 18+ and npm
+- Supabase account and project
+- Vercel account (for frontend deployment)
+- API keys for external services
+
+### Environment Variables
+
+#### Frontend (.env.local)
 ```bash
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+#### Supabase Edge Functions
+```bash
 OPENROUTER_API_KEY=your_openrouter_api_key
 GROQ_API_KEY=your_groq_api_key
 HUGGINGFACE_API_KEY=your_huggingface_api_key
 ```
 
-### Supabase Edge Functions
+### Deployment Steps
+
+#### 1. Supabase Setup
 ```bash
-SERVICE_ROLE_KEY=your_service_role_key
+# Install Supabase CLI
+npm install -g supabase
+
+# Initialize project
+supabase init
+
+# Link to remote project
+supabase link --project-ref your-project-ref
+
+# Deploy database migrations
+supabase db push
+
+# Deploy Edge Functions
+supabase functions deploy
 ```
 
-## Deployment Instructions
+#### 2. Frontend Deployment (Vercel)
+```bash
+# Install Vercel CLI
+npm install -g vercel
 
-### Frontend (Vercel)
-1. Connect GitHub repository to Vercel
-2. Set environment variables in Vercel dashboard
-3. Deploy automatically on push to main branch
+# Deploy to Vercel
+vercel --prod
 
-### Supabase Edge Functions
-1. Navigate to Supabase Dashboard > Edge Functions
-2. Upload function files manually:
-   - `generate-course/index.ts` (updated with enhanced idempotency)
-   - `text-to-speech/index.ts`
-   - `fallback-tts/index.ts`
-   - `realtime-voice-chat/index.ts`
-3. Set environment variables in Supabase dashboard
+# Set environment variables in Vercel dashboard
+```
 
-### Database Migrations
-1. Run SQL migrations in Supabase SQL Editor:
-   - `20250821090001_add_course_uniqueness.sql`
-   - `20250821090002_add_language_preference.sql`
-   - `20250821090003_prevent_duplicate_courses.sql` (new)
+#### 3. Storage Configuration
+```sql
+-- Create storage bucket
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('course-files', 'course-files', true);
 
-## API Endpoints
+-- Set up storage policies
+CREATE POLICY "Users can upload their own files" ON storage.objects
+  FOR INSERT WITH CHECK (auth.uid()::text = (storage.foldername(name))[1]);
 
-### Supabase Edge Functions
-- `POST /functions/v1/generate-course` - Generate AI course (with enhanced idempotency)
-- `POST /functions/v1/text-to-speech` - Groq TTS
-- `POST /functions/v1/fallback-tts` - Hugging Face TTS
-- `POST /functions/v1/realtime-voice-chat` - Voice chat
+CREATE POLICY "Users can view their own files" ON storage.objects
+  FOR SELECT USING (auth.uid()::text = (storage.foldername(name))[1]);
+```
 
-### External APIs
-- OpenRouter API (DeepSeek R1)
-- Groq TTS API (PlayAI)
-- Hugging Face Inference API
+### Production Checklist
+- [ ] Environment variables configured
+- [ ] Database migrations applied
+- [ ] Edge Functions deployed
+- [ ] Storage buckets created
+- [ ] RLS policies enabled
+- [ ] API keys secured
+- [ ] Domain configured
+- [ ] SSL certificates active
+- [ ] Monitoring setup
+- [ ] Backup strategy implemented
 
-## Performance Optimizations
-
-### TTS Optimizations
-- Text chunking (800 chars max per request)
-- Symbol/emoji removal for natural speech
-- Streaming audio playback
-- Fallback chain: Groq → Hugging Face → Browser
-
-### Course Generation
-- **Enhanced Idempotency**: Request ID tracking + database triggers
-- **Duplicate Prevention**: Multi-layered protection at frontend, backend, and database levels
-- **Request Deduplication**: Prevent unnecessary API calls
-- Loading states and user feedback
-- Error handling and retry logic
-
-### UI/UX
-- Responsive design across all devices
-- Loading indicators and progress feedback
-- Toast notifications for user feedback
-- Confirmation dialogs for destructive actions
+---
 
 ## Troubleshooting
 
 ### Common Issues
-1. **TTS Rate Limits**: Groq has daily token limits
-2. **Course Duplication**: Enhanced idempotency protection prevents this
-3. **Upload Button**: Now properly opens file picker on all devices
-4. **Language Support**: Verify language codes and fallbacks
-5. **Authentication**: Ensure email verification is enabled
 
-### Debug Steps
-1. Check browser console for errors
-2. Verify environment variables
-3. Test Edge Functions individually
-4. Check Supabase logs for database issues
-5. Monitor request IDs in course generation logs
+#### 1. Course Generation Fails
+**Symptoms**: Course creation returns error or times out
+**Solutions**:
+- Check OpenRouter API key configuration
+- Verify network connectivity
+- Check Supabase Edge Function logs
+- Ensure user authentication is valid
 
-## Future Enhancements
+#### 2. TTS Not Working
+**Symptoms**: No audio playback or TTS errors
+**Solutions**:
+- Check TTS model availability
+- Verify API keys for TTS services
+- Test with different TTS models
+- Check browser audio permissions
+- Review circuit breaker status
 
-### Planned Features
-- Additional language support
-- Advanced course analytics
-- Collaborative learning features
-- Mobile app development
-- Advanced AI models integration
+#### 3. Authentication Issues
+**Symptoms**: Login/signup failures
+**Solutions**:
+- Verify Supabase configuration
+- Check email verification status
+- Clear browser cache and cookies
+- Verify OAuth provider settings
 
-### Technical Improvements
-- WebSocket optimization for voice chat
-- Advanced caching strategies
-- Performance monitoring
-- Automated testing suite
+#### 4. File Upload Problems
+**Symptoms**: Files not uploading or processing
+**Solutions**:
+- Check file size limits (5MB max)
+- Verify supported file formats
+- Check storage bucket configuration
+- Review RLS policies for storage
 
-## Support & Maintenance
+#### 5. Voice Chat Issues
+**Symptoms**: Voice chat not responding
+**Solutions**:
+- Check microphone permissions
+- Verify audio input/output devices
+- Test with different browsers
+- Check Edge Function logs
+- Verify session persistence
 
-### Regular Tasks
-- Monitor API rate limits
-- Update Edge Functions as needed
-- Database performance optimization
-- Security updates and patches
+### Debug Mode
 
-### Monitoring
-- Vercel deployment status
-- Supabase function logs
-- API usage and costs
-- User feedback and bug reports
+#### Enable Debug Logging
+```typescript
+// In development, enable detailed logging
+if (process.env.NODE_ENV === 'development') {
+  console.log('Debug mode enabled');
+  // Add detailed logging for debugging
+}
+```
+
+#### Supabase Debug
+```bash
+# Check Edge Function logs
+supabase functions logs --follow
+
+# Check database logs
+supabase db logs
+
+# Test Edge Functions locally
+supabase functions serve
+```
+
+### Performance Monitoring
+
+#### Key Metrics to Monitor
+- **Response Times**: API response times
+- **Error Rates**: Failed requests percentage
+- **User Engagement**: Active users and session duration
+- **Resource Usage**: CPU, memory, and storage
+- **TTS Performance**: Audio generation times
+- **Course Generation**: Success rates and processing times
+
+#### Monitoring Tools
+- **Supabase Dashboard**: Built-in monitoring
+- **Vercel Analytics**: Frontend performance
+- **Custom Logging**: Application-specific metrics
+- **Error Tracking**: Sentry or similar service
+
+### Support and Maintenance
+
+#### Regular Maintenance Tasks
+- **Database Optimization**: Regular VACUUM and ANALYZE
+- **Log Cleanup**: Archive old logs and clean up storage
+- **Security Updates**: Keep dependencies updated
+- **Performance Review**: Monitor and optimize slow queries
+- **Backup Verification**: Test backup and recovery procedures
+
+#### Getting Help
+- **Documentation**: Refer to this comprehensive guide
+- **Community**: Join Supabase and Vercel communities
+- **Support**: Contact platform support for infrastructure issues
+- **GitHub Issues**: Report bugs and feature requests
 
 ---
 
-*Last Updated: August 21, 2025*
-*Version: 2.1.0*
+## Conclusion
+
+GEN-COACH AI represents a cutting-edge approach to AI-powered education, combining advanced machine learning models with intuitive user interfaces. The platform's architecture is designed for scalability, reliability, and user experience, making it suitable for both individual learners and educational institutions.
+
+The comprehensive documentation provided here covers all aspects of the platform, from user guides to technical implementation details. This ensures that both end-users and developers can effectively utilize and maintain the system.
+
+For additional support or questions, please refer to the troubleshooting section or contact the development team.
+
+---
+
+*Last Updated: January 2025*
+*Version: 2.0.0*

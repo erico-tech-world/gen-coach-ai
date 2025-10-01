@@ -23,3 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Documentation files (ignore all .md files except DOCUMENTATION.md and README.md)
+*.md
+!DOCUMENTATION.md
+!README.md
