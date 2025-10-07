@@ -64,6 +64,7 @@
 - **Progress Tracking**: Visual indicators show current position
 - **Live Subtitles**: Real-time caption display
 - **Session Persistence**: Resume from where you left off
+- **Resilient Fallbacks**: If all server TTS providers are unavailable or rate-limited, narration automatically switches to safe, local browser speech synthesis to ensure continuous playback.
 
 ##### Real-time Voice Chat
 - **Voice Input**: Speak naturally to the AI assistant
@@ -127,13 +128,13 @@ GEN-COACH AI follows a modern, scalable architecture with clear separation of co
 
 #### AI/ML Services
 - **OpenRouter API**: DeepSeek R1 model for course generation
-- **Multi-Model TTS System**:
-  - MaskGCT: Real-time, low-latency TTS
-  - VibeVoice: High-quality, long-form content
-  - Chatterbox: Expressive, conversational TTS
-  - MeloTTS: Multilingual support (50+ languages)
-  - Groq TTS: Legacy fallback
-- **Hugging Face API**: Translation and fallback TTS
+- **Multi-Model TTS System** (automatic failover):
+  - MaskGCT: Real-time, low-latency TTS (Hugging Face)
+  - VibeVoice: High-quality, long-form content (Hugging Face)
+  - Chatterbox: Expressive, conversational TTS (Hugging Face)
+  - MeloTTS: Multilingual support (50+ languages) (Hugging Face)
+  - Groq TTS: On-demand fallback when HF is missing or fails
+  - Browser Speech Synthesis: Final local fallback when server-side TTS is rate-limited or unavailable
 - **Custom Edge Functions**: Real-time voice chat and processing
 
 ### Database Schema
@@ -270,8 +271,9 @@ src/
   - Circuit breaker pattern for fault tolerance
   - Priority-based model selection
   - Token-bucket rate limiting
-  - Automatic failover between models
+  - Automatic failover between models (HF → Groq → Browser Speech)
   - Session state management
+  - MIME-aware playback via Blob URLs with base64 normalization/padding
 
 ##### `useAIVoiceChatMemory.ts`
 - **Purpose**: Persistent conversation memory
@@ -369,7 +371,7 @@ function selectTTSModel(text: string, language: string): TTSModel {
 ```
 
 #### `text-to-speech`
-**Purpose**: Generate speech from text using Groq TTS
+**Purpose**: Generate speech from text using Groq TTS (WAV output)
 
 **Request**:
 ```typescript
@@ -383,7 +385,8 @@ function selectTTSModel(text: string, language: string): TTSModel {
 ```typescript
 {
   success: boolean;
-  audio: string; // Base64 encoded audio
+  audioContent: string; // Base64 audio (WAV)
+  contentType: string;  // e.g. "audio/wav"
   error?: string;
 }
 ```
@@ -484,6 +487,9 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 OPENROUTER_API_KEY=your_openrouter_api_key
 GROQ_API_KEY=your_groq_api_key
 HUGGINGFACE_API_KEY=your_huggingface_api_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 ### Deployment Steps
@@ -572,11 +578,12 @@ See [STORAGE_SETUP_GUIDE.md](STORAGE_SETUP_GUIDE.md) for detailed instructions.
 #### 2. TTS Not Working
 **Symptoms**: No audio playback or TTS errors
 **Solutions**:
-- Check TTS model availability
-- Verify API keys for TTS services
-- Test with different TTS models
-- Check browser audio permissions
-- Review circuit breaker status
+- Check TTS model availability and API keys
+- If Hugging Face is unavailable, functions auto-fallback to Groq
+- If Groq returns 429 (rate limited), the client uses Browser Speech automatically
+- Ensure browser can autoplay with sound or interact with the page first
+- Check Network → Response to confirm fields `audio` or `audioContent` and `contentType`
+- Confirm Edge env vars: `SUPABASE_URL`, `SUPABASE_ANON_KEY` for internal function calls
 
 #### 3. Authentication Issues
 **Symptoms**: Login/signup failures
@@ -672,5 +679,5 @@ For additional support or questions, please refer to the troubleshooting section
 
 ---
 
-*Last Updated: January 2025*
-*Version: 2.0.0*
+*Last Updated: October 2025*
+*Version: 2.1.0*

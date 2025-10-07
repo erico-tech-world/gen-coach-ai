@@ -39,13 +39,13 @@ GEN-COACH AI is an advanced AI-powered educational platform that revolutionizes 
 ### Backend
 - **Supabase** (PostgreSQL, Auth, Storage, Edge Functions)
 - **OpenRouter API** (DeepSeek R1 model for course generation)
-- **Multi-Model TTS System**:
-  - MaskGCT (real-time)
-  - VibeVoice (long-form)
-  - Chatterbox (expressive)
-  - MeloTTS (multilingual)
-  - Groq TTS (fallback)
-- **Hugging Face API** (translation and fallback TTS)
+- **Multi-Model TTS System** with automatic failover:
+  - MaskGCT (real-time, Hugging Face)
+  - VibeVoice (long-form, Hugging Face)
+  - Chatterbox (expressive, Hugging Face)
+  - MeloTTS (multilingual, Hugging Face)
+  - Groq TTS (server fallback, WAV)
+  - Browser Speech Synthesis (final local fallback)
 
 ## 🚀 Quick Start
 
@@ -120,6 +120,9 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 OPENROUTER_API_KEY=your_openrouter_api_key
 GROQ_API_KEY=your_groq_api_key
 HUGGINGFACE_API_KEY=your_huggingface_api_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 ### Supabase Setup
@@ -200,9 +203,10 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
    - Check Supabase Edge Function logs
 
 2. **TTS Not Working**
-   - Check TTS model availability
-   - Verify API keys for TTS services
-   - Test with different TTS models
+   - Check TTS model availability and API keys
+   - Hugging Face failures auto-fallback to Groq; Groq 429 auto-fallback to browser speech
+   - Confirm browser can autoplay audio (user interaction may be required)
+   - Inspect Network → Response for `audio`/`audioContent` and `contentType`
 
 3. **Authentication Issues**
    - Verify Supabase configuration
