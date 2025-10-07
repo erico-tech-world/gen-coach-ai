@@ -122,7 +122,8 @@ serve(async (req) => {
     // @ts-expect-error Deno runtime
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     // @ts-expect-error Deno runtime
-    const supabaseServiceKey = Deno.env.get('SERVICE_ROLE_KEY');
+    // Supabase sets SUPABASE_SERVICE_ROLE_KEY by default; support legacy SERVICE_ROLE_KEY as fallback
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SERVICE_ROLE_KEY');
 
     // Validate environment variables
     if (!openRouterApiKey) {
@@ -164,8 +165,8 @@ serve(async (req) => {
           .from('courses')
           .select('id, title, created_at')
           .eq('user_id', userId)
-          .eq('additional_details', `AI-generated course with request ID: ${requestId}`)
-          .single();
+          .like('additional_details', `%Request ID: ${requestId}%`)
+          .maybeSingle();
 
         if (checkError && checkError.code !== 'PGRST116') {
           // PGRST116 is "no rows returned" - that's expected for new requests

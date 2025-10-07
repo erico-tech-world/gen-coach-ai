@@ -282,7 +282,15 @@ export class CloudflareR2Storage {
    * Check if R2 storage is properly configured
    */
   isConfigured(): boolean {
-    return !!(this.baseUrl && this.accountId && this.accessKeyId && this.secretAccessKey && this.bucketName);
+    const configured = !!(this.accountId && this.accessKeyId && this.secretAccessKey && this.bucketName);
+    console.log('Cloudflare R2 Configuration Check:', {
+      accountId: !!this.accountId,
+      accessKeyId: !!this.accessKeyId,
+      secretAccessKey: !!this.secretAccessKey,
+      bucketName: !!this.bucketName,
+      configured
+    });
+    return configured;
   }
 
   /**

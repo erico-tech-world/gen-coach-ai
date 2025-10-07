@@ -23,6 +23,7 @@ interface TTSResponse {
   audioData?: string;
   error?: string;
   modelUsed?: string;
+  mimeType?: string;
 }
 
 export function useRealtimeTTS() {
@@ -228,6 +229,38 @@ export function useRealtimeTTS() {
     };
   }, []);
 
+  // Browser Speech Synthesis Fallback
+  const speakWithBrowserSpeech = useCallback(async (text: string, language: string = 'en'): Promise<void> => {
+    // Feature detection
+    // @ts-ignore - window.speechSynthesis present in browsers
+    const synth = typeof window !== 'undefined' ? window.speechSynthesis : undefined;
+    // @ts-ignore
+    const SpeechSynthesisUtteranceCtor = typeof window !== 'undefined' ? window.SpeechSynthesisUtterance : undefined;
+    if (!synth || !SpeechSynthesisUtteranceCtor) {
+      throw new Error('Browser speech synthesis not available');
+    }
+
+    const resolveOnEnd = () => new Promise<void>((resolve, reject) => {
+      try {
+        const utter = new SpeechSynthesisUtteranceCtor(text);
+        // Map short language codes
+        const langMap: Record<string, string> = {
+          'en': 'en-US', 'fr': 'fr-FR', 'es': 'es-ES', 'de': 'de-DE', 'it': 'it-IT', 'pt': 'pt-PT', 'nl': 'nl-NL', 'pl': 'pl-PL', 'ru': 'ru-RU', 'ja': 'ja-JP', 'ko': 'ko-KR', 'zh': 'zh-CN'
+        };
+        utter.lang = langMap[language] || language || 'en-US';
+        utter.rate = 1.0;
+        utter.pitch = 1.0;
+        utter.onend = () => resolve();
+        utter.onerror = () => reject(new Error('Speech synthesis error'));
+        synth.speak(utter);
+      } catch (e) {
+        reject(e);
+      }
+    });
+
+    await resolveOnEnd();
+  }, []);
+
   // Individual TTS Model Implementations
   const generateWithMaskGCT = async (text: string, language: string): Promise<TTSResponse> => {
     try {
@@ -237,10 +270,11 @@ export function useRealtimeTTS() {
 
       if (error) throw error;
 
-      return {
-        success: true,
-        audioData: data.audio
-      };
+      if (!data || data.success !== true || !data.audio) {
+        return { success: false, error: data?.error || 'MaskGCT returned no audio' };
+      }
+
+      return { success: true, audioData: data.audio };
     } catch (error) {
       throw new Error(`MaskGCT TTS failed: ${error}`);
     }
@@ -254,10 +288,11 @@ export function useRealtimeTTS() {
 
       if (error) throw error;
 
-      return {
-        success: true,
-        audioData: data.audio
-      };
+      if (!data || data.success !== true || !data.audio) {
+        return { success: false, error: data?.error || 'VibeVoice returned no audio' };
+      }
+
+      return { success: true, audioData: data.audio };
     } catch (error) {
       throw new Error(`VibeVoice TTS failed: ${error}`);
     }
@@ -271,10 +306,11 @@ export function useRealtimeTTS() {
 
       if (error) throw error;
 
-      return {
-        success: true,
-        audioData: data.audio
-      };
+      if (!data || data.success !== true || !data.audio) {
+        return { success: false, error: data?.error || 'Chatterbox returned no audio' };
+      }
+
+      return { success: true, audioData: data.audio };
     } catch (error) {
       throw new Error(`Chatterbox TTS failed: ${error}`);
     }
@@ -288,10 +324,11 @@ export function useRealtimeTTS() {
 
       if (error) throw error;
 
-      return {
-        success: true,
-        audioData: data.audio
-      };
+      if (!data || data.success !== true || !data.audio) {
+        return { success: false, error: data?.error || 'MeloTTS returned no audio' };
+      }
+
+      return { success: true, audioData: data.audio };
     } catch (error) {
       throw new Error(`MeloTTS failed: ${error}`);
     }
@@ -305,10 +342,11 @@ export function useRealtimeTTS() {
 
       if (error) throw error;
 
-      return {
-        success: true,
-        audioData: data.audio
-      };
+      if (!data || data.success !== true || !(data.audioContent || data.audio)) {
+        return { success: false, error: data?.error || 'Groq TTS returned no audio' };
+      }
+
+      return { success: true, audioData: data.audioContent || data.audio, mimeType: data.contentType || 'audio/wav' };
     } catch (error) {
       throw new Error(`Groq TTS failed: ${error}`);
     }
@@ -328,7 +366,39 @@ export function useRealtimeTTS() {
     setIsGenerating(true);
     
     try {
-      // Add to queue
+      // Helper: chunk text to keep within edge function limits.
+      // We choose a conservative maxChunkLength of 900 to satisfy the strictest limit (MaskGCT: 1000).
+      const chunkText = (input: string, maxLen: number): string[] => {
+        const sentences = input
+          .replace(/\s+/g, ' ')
+          .split(/(?<=[.!?])\s+/)
+          .filter(Boolean);
+        const chunks: string[] = [];
+        let current = '';
+        for (const sentence of sentences) {
+          if (current.length + sentence.length + 1 <= maxLen) {
+            current = current ? `${current} ${sentence}` : sentence;
+          } else {
+            if (current) chunks.push(current);
+            // If a single sentence is too long, hard-split it
+            if (sentence.length > maxLen) {
+              for (let i = 0; i < sentence.length; i += maxLen) {
+                chunks.push(sentence.slice(i, i + maxLen));
+              }
+              current = '';
+            } else {
+              current = sentence;
+            }
+          }
+        }
+        if (current) chunks.push(current);
+        return chunks;
+      };
+
+      const SAFE_MAX_CHARS = 900;
+      const chunks = chunkText(text, SAFE_MAX_CHARS);
+
+      // Enqueue logical request for tracking
       const request: TTSRequest = {
         id: `tts_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         text,
@@ -336,22 +406,29 @@ export function useRealtimeTTS() {
         priority: 1,
         timestamp: Date.now()
       };
-
       addToQueue(request);
 
-      // Generate TTS
-      const response = await generateTTS(text, language);
-      
-      if (response.success && response.audioData) {
-        // Play audio
-        await playAudio(response.audioData);
-        
-        toast({
-          title: "Speech Generated",
-          description: `Using ${response.modelUsed}`,
-        });
-      } else {
-        throw new Error(response.error || 'TTS generation failed');
+      // Generate and play each chunk sequentially
+      for (let i = 0; i < chunks.length; i++) {
+        const part = chunks[i];
+        const response = await generateTTS(part, language);
+        if (response.success && response.audioData) {
+          await playAudio(response.audioData, response.mimeType);
+          if (i === 0) {
+            toast({ title: "Speech Started", description: `Using ${response.modelUsed}` });
+          }
+          continue;
+        }
+
+        // Server TTS failed: fallback to browser speech synthesis
+        try {
+          await speakWithBrowserSpeech(part, language);
+          if (i === 0) {
+            toast({ title: "Speech Started", description: "Using browser voice (fallback)" });
+          }
+        } catch (fallbackError) {
+          throw new Error(response.error || (fallbackError instanceof Error ? fallbackError.message : 'TTS generation failed'));
+        }
       }
     } catch (error) {
       console.error('TTS Error:', error);
@@ -374,7 +451,7 @@ export function useRealtimeTTS() {
   }, [toast, addToQueue, removeFromQueue, generateTTS]);
 
   // Audio Playback
-  const playAudio = useCallback(async (audioData: string): Promise<void> => {
+  const playAudio = useCallback(async (audioData: string, explicitMimeType?: string): Promise<void> => {
     try {
       // Create audio element
       if (!audioRef.current) {
@@ -383,16 +460,62 @@ export function useRealtimeTTS() {
 
       const audio = audioRef.current;
       
-      // Set audio source
-      if (audioData.startsWith('data:audio/')) {
-        audio.src = audioData;
-      } else {
-        audio.src = `data:audio/mp3;base64,${audioData}`;
+      const normalizeBase64 = (input: string): string => {
+        // If it's a data URL, strip the prefix
+        const commaIdx = input.indexOf(',');
+        let b64 = input.startsWith('data:') && commaIdx !== -1 ? input.slice(commaIdx + 1) : input;
+        // Remove whitespace/newlines
+        b64 = b64.replace(/\s+/g, '');
+        // Convert URL-safe base64 to standard
+        b64 = b64.replace(/-/g, '+').replace(/_/g, '/');
+        // Add padding
+        const pad = b64.length % 4;
+        if (pad === 2) b64 += '==';
+        else if (pad === 3) b64 += '=';
+        else if (pad === 1) b64 += '==='; // extremely rare
+        return b64;
+      };
+
+      const base64ToBlobUrl = (raw: string, mime: string): string => {
+        const b64 = normalizeBase64(raw);
+        const binary = atob(b64);
+        const len = binary.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+        const blob = new Blob([bytes], { type: mime });
+        return URL.createObjectURL(blob);
+      };
+
+      const tryPlay = async (mime: string) => {
+        if (audioData.startsWith('blob:')) {
+          audio.src = audioData;
+        } else if (audioData.startsWith('data:audio/')) {
+          audio.src = audioData;
+        } else {
+          audio.src = base64ToBlobUrl(audioData, mime);
+        }
+        setIsPlaying(true);
+        await audio.play();
+      };
+
+      // Prefer explicit MIME if provided (e.g., Groq 'audio/wav')
+      if (explicitMimeType) {
+        try {
+          await tryPlay(explicitMimeType);
+        } catch {}
       }
 
-      // Play audio
-      setIsPlaying(true);
-      await audio.play();
+      if (audio.paused) {
+        try {
+          await tryPlay('audio/mp3');
+        } catch {
+          try {
+            await tryPlay('audio/mpeg');
+          } catch {
+            await tryPlay('audio/wav');
+          }
+        }
+      }
 
       // Handle audio events
       audio.onended = () => {

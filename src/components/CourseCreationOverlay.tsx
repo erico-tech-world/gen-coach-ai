@@ -13,6 +13,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { CloudflareR2Storage } from "@/services/cloudflareR2Storage";
+import { supabaseStorage } from "@/services/supabaseStorage";
 
 interface CourseCreationOverlayProps {
   isOpen: boolean;
@@ -132,15 +133,22 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
           throw new Error("User not authenticated");
         }
 
-        // Check if Cloudflare R2 is configured
-        if (!cloudflareR2.isConfigured()) {
-          throw new Error("Cloudflare R2 storage is not configured. Please contact support.");
+        // Try Cloudflare R2 first, fallback to Supabase Storage
+        let uploadResult;
+        
+        if (cloudflareR2.isConfigured()) {
+          console.log('Using Cloudflare R2 for file upload');
+          // Upload to Cloudflare R2 with progress tracking
+          uploadResult = await cloudflareR2.completeFileUpload(file, user.id, (progress) => {
+            setUploadProgress(progress);
+          });
+        } else {
+          console.log('Cloudflare R2 not configured, using Supabase Storage fallback');
+          // Fallback to Supabase Storage
+          uploadResult = await supabaseStorage.completeFileUpload(file, user.id, (progress) => {
+            setUploadProgress(progress);
+          });
         }
-
-        // Upload to Cloudflare R2 with progress tracking
-        const uploadResult = await cloudflareR2.completeFileUpload(file, user.id, (progress) => {
-          setUploadProgress(progress);
-        });
         
         if (uploadResult.success) {
           setFileUrl(uploadResult.url);
@@ -148,12 +156,13 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
           setIsUploading(false);
           setUploadProgress(100);
 
+          const storageType = cloudflareR2.isConfigured() ? 'Cloudflare R2' : 'Supabase Storage';
           toast({
-            title: "Document Uploaded to Cloud",
-            description: `"${file.name}" has been uploaded successfully and will be processed during course generation.`,
+            title: "Document Uploaded Successfully",
+            description: `"${file.name}" has been uploaded to ${storageType} and will be processed during course generation.`,
           });
         } else {
-          throw new Error(uploadResult.error || "Failed to upload file to Cloudflare R2");
+          throw new Error(uploadResult.error || "Failed to upload file");
         }
       }
     } catch (error) {
@@ -168,7 +177,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
         variant: "destructive"
       });
     }
-  }, [toast, cloudflareR2]);
+  }, [toast, cloudflareR2, supabaseStorage]);
 
   // Separate document removal handler
   const removeDocument = useCallback(() => {
@@ -344,7 +353,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
               {/* File Size Guidelines */}
               <div className="text-xs text-muted-foreground space-y-1">
                 <p>• Files &lt;=500KB: Processed inline for immediate context</p>
-                <p>• Files 500KB-5MB: Stored in Cloudflare R2 and processed during generation</p>
+                <p>• Files 500KB-5MB: Stored in cloud storage and processed during generation</p>
                 <p>• Files &gt;5MB: Not supported</p>
               </div>
 
@@ -390,7 +399,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
                         <span className="text-sm font-medium text-foreground">{documentName}</span>
                         <p className="text-xs text-muted-foreground">
                           {fileSize > 0 ? `${(fileSize / 1024).toFixed(1)}KB` : ''}
-                          {fileUrl ? ' (Cloudflare R2)' : ' (Inline Processing)'}
+                          {fileUrl ? ' (Cloud Storage)' : ' (Inline Processing)'}
                         </p>
                       </div>
                     </div>
@@ -436,7 +445,7 @@ export function CourseCreationOverlay({ isOpen, onClose, onCourseCreated }: Cour
                   <li>• Include your current skill level</li>
                   <li>• Mention any specific topics or concepts you want to focus on</li>
                   <li>• Upload relevant documents for enhanced context</li>
-                  <li>• Large documents are automatically stored in Cloudflare R2</li>
+                  <li>• Large documents are automatically stored in cloud storage</li>
                 </ul>
               </CardContent>
             </Card>

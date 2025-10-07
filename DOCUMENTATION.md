@@ -518,18 +518,30 @@ vercel --prod
 ```
 
 #### 3. Storage Configuration
-```sql
--- Create storage bucket
-INSERT INTO storage.buckets (id, name, public) 
-VALUES ('course-files', 'course-files', true);
 
--- Set up storage policies
-CREATE POLICY "Users can upload their own files" ON storage.objects
-  FOR INSERT WITH CHECK (auth.uid()::text = (storage.foldername(name))[1]);
+**Option 1: Automatic Setup (Recommended)**
+The system will automatically create the required storage bucket. No manual setup needed!
 
-CREATE POLICY "Users can view their own files" ON storage.objects
-  FOR SELECT USING (auth.uid()::text = (storage.foldername(name))[1]);
+**Option 2: Manual Setup (If automatic fails)**
+1. Go to Supabase Dashboard > Storage
+2. Create bucket named `user-uploads` (private, 5MB limit)
+3. Run the storage migrations in `supabase/migrations/`
+
+**Option 3: Cloudflare R2 (Production)**
+Set these environment variables for R2 storage:
+```bash
+VITE_CLOUDFLARE_ACCOUNT_ID=your_account_id
+VITE_CLOUDFLARE_ACCESS_KEY_ID=your_access_key_id
+VITE_CLOUDFLARE_SECRET_ACCESS_KEY=your_secret_access_key
+VITE_CLOUDFLARE_BUCKET_NAME=your_bucket_name
 ```
+
+**Storage Fallback System**:
+- Tries Cloudflare R2 first (if configured)
+- Falls back to Supabase Storage automatically
+- Creates buckets automatically if needed
+
+See [STORAGE_SETUP_GUIDE.md](STORAGE_SETUP_GUIDE.md) for detailed instructions.
 
 ### Production Checklist
 - [ ] Environment variables configured
@@ -577,10 +589,13 @@ CREATE POLICY "Users can view their own files" ON storage.objects
 #### 4. File Upload Problems
 **Symptoms**: Files not uploading or processing
 **Solutions**:
+- **For files > 500KB**: System automatically uses cloud storage
+- **Cloudflare R2 not configured**: System falls back to Supabase Storage
+- **Storage bucket missing**: System creates it automatically
 - Check file size limits (5MB max)
-- Verify supported file formats
-- Check storage bucket configuration
-- Review RLS policies for storage
+- Verify supported file formats (.txt, .md, .pdf, .doc, .docx)
+- Check Supabase project is active
+- See [STORAGE_SETUP_GUIDE.md](STORAGE_SETUP_GUIDE.md) for detailed troubleshooting
 
 #### 5. Voice Chat Issues
 **Symptoms**: Voice chat not responding

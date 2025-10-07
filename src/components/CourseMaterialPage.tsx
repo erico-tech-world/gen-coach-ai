@@ -195,7 +195,14 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
 
           // Build an engaging lecture script from outline + content
           const outline = `${module.title}\n${module.content}`;
-          const lecture = await buildLecture(outline, courseTitle);
+          let lecture;
+          try {
+            lecture = await buildLecture(outline, courseTitle);
+          } catch (error) {
+            console.warn('Failed to build lecture, using fallback content:', error);
+            lecture = null;
+          }
+          
           const shortText = (lecture && lecture.length > 0)
             ? lecture
             : (module.content.length > 500 
@@ -229,7 +236,14 @@ export function CourseMaterialPage({ courseId, courseTitle, onBack }: CourseMate
         const firstModule = modules[0];
         if (firstModule && firstModule.content && firstModule.content.trim().length >= 5) {
           const outline = `${firstModule.title}\n${firstModule.content}`;
-          const lecture = await buildLecture(outline, courseTitle);
+          let lecture;
+          try {
+            lecture = await buildLecture(outline, courseTitle);
+          } catch (error) {
+            console.warn('Failed to build lecture for course introduction, using fallback:', error);
+            lecture = null;
+          }
+          
           const shortText = lecture && lecture.length > 0
             ? lecture
             : `Welcome to ${courseTitle}. ${firstModule.title}. ${firstModule.content.substring(0, 300)}...`;

@@ -179,6 +179,13 @@ export function useAI() {
       return data.lecture as string;
     } catch (e) {
       console.error('Lecture build error:', e);
+      
+      // Don't show toast for rate limiting errors - just log and return null
+      if (e instanceof Error && e.message.includes('429')) {
+        console.warn('OpenRouter rate limit reached, using fallback content');
+        return null;
+      }
+      
       toast({
         title: 'Lecture Generation Failed',
         description: e instanceof Error ? e.message : 'Could not generate lecture script.',
