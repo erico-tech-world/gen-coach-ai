@@ -126,9 +126,12 @@ Remember: You're here to help users learn, grow, and make the most of their GEN-
     if (!openRouterResponse.ok) {
       const errorText = await openRouterResponse.text();
       console.error('OpenRouter API error:', errorText);
+      // Graceful local fallback message when rate-limited or unavailable
+      const fallback = `I’m currently experiencing high demand and can't access my advanced reasoning model. However, I can still help. Could you rephrase or narrow your question?`;
       return new Response(JSON.stringify({ 
-        success: false, 
-        error: `OpenRouter API error: ${openRouterResponse.status} - ${errorText}` 
+        success: true,
+        response: fallback,
+        model: 'fallback-local'
       }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

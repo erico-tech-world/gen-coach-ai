@@ -21,6 +21,7 @@ interface ChatSession {
   messages: ChatMessage[];
   createdAt: number;
   updatedAt: number;
+  // Keep metadata in-memory only to match DB schema without metadata column
   metadata?: {
     courseId?: string;
     courseTitle?: string;
@@ -68,7 +69,7 @@ export function useAIVoiceChatMemory() {
           messages: existingSession.messages || [],
           createdAt: new Date(existingSession.created_at).getTime(),
           updatedAt: new Date(existingSession.updated_at).getTime(),
-          metadata: existingSession.metadata || {}
+          metadata: {} // in-memory only
         };
         
         setCurrentSession(session);
@@ -140,8 +141,7 @@ export function useAIVoiceChatMemory() {
           .insert({
             user_id: session.userId,
             session_id: session.sessionId,
-            messages: session.messages,
-            metadata: session.metadata
+            messages: session.messages
           })
           .select()
           .single();
@@ -158,7 +158,6 @@ export function useAIVoiceChatMemory() {
           .from('ai_chat_memory')
           .update({
             messages: session.messages,
-            metadata: session.metadata,
             updated_at: new Date().toISOString()
           })
           .eq('id', session.id);
@@ -217,7 +216,7 @@ export function useAIVoiceChatMemory() {
     return summary;
   }, []);
 
-  // Update session metadata
+  // Update session metadata (kept in-memory only)
   const updateSessionMetadata = useCallback(async (metadata: Partial<ChatSession['metadata']>) => {
     if (!sessionRef.current) return;
 
@@ -230,7 +229,7 @@ export function useAIVoiceChatMemory() {
     setCurrentSession(updatedSession);
     sessionRef.current = updatedSession;
 
-    // Save to database
+    // Save to database (messages only)
     await saveSessionToDatabase(updatedSession);
   }, [saveSessionToDatabase]);
 
@@ -284,7 +283,7 @@ export function useAIVoiceChatMemory() {
         messages: sessionData.messages || [],
         createdAt: new Date(sessionData.created_at).getTime(),
         updatedAt: new Date(sessionData.updated_at).getTime(),
-        metadata: sessionData.metadata || {}
+        metadata: {}
       };
 
       setCurrentSession(session);
@@ -329,7 +328,7 @@ export function useAIVoiceChatMemory() {
         messages: session.messages || [],
         createdAt: new Date(session.created_at).getTime(),
         updatedAt: new Date(session.updated_at).getTime(),
-        metadata: session.metadata || {}
+        metadata: {}
       }));
     } catch (error) {
       console.error('Error getting user sessions:', error);

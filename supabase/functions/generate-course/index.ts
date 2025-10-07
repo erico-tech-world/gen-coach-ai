@@ -295,94 +295,89 @@ Please ensure the course is:
 - Professional and user-friendly in presentation`;
 
     console.log('Calling OpenRouter API...');
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openRouterApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'deepseek/deepseek-r1:free',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 4000,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('OpenRouter API error:', response.status, errorText);
-      return new Response(JSON.stringify({ 
-        error: `OpenRouter API error: ${response.status}`,
-        details: errorText
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    
-    if (!content) {
-      return new Response(JSON.stringify({ 
-        error: 'No content received from AI',
-        details: 'The AI model did not return any content'
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-    
-    console.log('Parsing AI response...');
-    let courseData;
+    let courseData: any = null;
     try {
-      // Try to parse as JSON first
-      courseData = JSON.parse(content);
-    } catch (parseError) {
-      console.error('Failed to parse AI response as JSON:', parseError);
-      console.log('Raw AI response:', content);
-      // Fallback: create a basic course structure
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openRouterApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'deepseek/deepseek-r1:free',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.7,
+          max_tokens: 4000,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('OpenRouter API error:', response.status, errorText);
+        // Graceful fallback to a locally generated course template
+        courseData = {
+          title: `Course on ${prompt}`,
+          modules: [
+            { id: "1", title: "Introduction", content: `Welcome to your course on ${prompt}. This module will introduce you to the fundamental concepts and prepare you for the learning journey ahead.`, objectives: ["Understand the basics", "Set learning goals", "Prepare for advanced topics"], completed: false },
+            { id: "2", title: "Core Concepts", content: `In this module, we'll explore the core concepts of ${prompt}. You'll learn the essential principles and foundational knowledge needed to master this topic.`, objectives: ["Learn core principles", "Understand key concepts", "Apply basic knowledge"], completed: false },
+            { id: "3", title: "Advanced Topics", content: `Now we'll dive into advanced topics related to ${prompt}. This module builds upon your foundational knowledge and explores more complex applications.`, objectives: ["Master advanced concepts", "Apply complex principles", "Solve challenging problems"], completed: false },
+            { id: "4", title: "Practice & Assessment", content: `In this final module, you'll practice what you've learned and assess your understanding of ${prompt}. This includes practical exercises and self-assessment tools.`, objectives: ["Practice skills", "Assess understanding", "Apply knowledge"], completed: false }
+          ],
+          youtubeLinks: [],
+          wikipediaData: { summary: `A comprehensive course covering ${prompt}`, keyConcepts: ["Fundamentals", "Core Principles", "Advanced Applications"] }
+        };
+      } else {
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content;
+        if (content) {
+          console.log('Parsing AI response...');
+          try {
+            courseData = JSON.parse(content);
+          } catch (parseError) {
+            console.error('Failed to parse AI response as JSON:', parseError);
+            console.log('Raw AI response:', content);
+            courseData = {
+              title: `Course on ${prompt}`,
+              modules: [
+                { id: "1", title: "Introduction", content: `Welcome to your course on ${prompt}. This module will introduce you to the fundamental concepts and prepare you for the learning journey ahead.`, objectives: ["Understand the basics", "Set learning goals", "Prepare for advanced topics"], completed: false },
+                { id: "2", title: "Core Concepts", content: `In this module, we'll explore the core concepts of ${prompt}. You'll learn the essential principles and foundational knowledge needed to master this topic.`, objectives: ["Learn core principles", "Understand key concepts", "Apply basic knowledge"], completed: false },
+                { id: "3", title: "Advanced Topics", content: `Now we'll dive into advanced topics related to ${prompt}. This module builds upon your foundational knowledge and explores more complex applications.`, objectives: ["Master advanced concepts", "Apply complex principles", "Solve challenging problems"], completed: false },
+                { id: "4", title: "Practice & Assessment", content: `In this final module, you'll practice what you've learned and assess your understanding of ${prompt}. This includes practical exercises and self-assessment tools.`, objectives: ["Practice skills", "Assess understanding", "Apply knowledge"], completed: false }
+              ],
+              youtubeLinks: [],
+              wikipediaData: { summary: `A comprehensive course covering ${prompt}`, keyConcepts: ["Fundamentals", "Core Principles", "Advanced Applications"] }
+            };
+          }
+        } else {
+          console.warn('No content from AI, using local template');
+          courseData = {
+            title: `Course on ${prompt}`,
+            modules: [
+              { id: "1", title: "Introduction", content: `Welcome to your course on ${prompt}. This module will introduce you to the fundamental concepts and prepare you for the learning journey ahead.`, objectives: ["Understand the basics", "Set learning goals", "Prepare for advanced topics"], completed: false },
+              { id: "2", title: "Core Concepts", content: `In this module, we'll explore the core concepts of ${prompt}. You'll learn the essential principles and foundational knowledge needed to master this topic.`, objectives: ["Learn core principles", "Understand key concepts", "Apply basic knowledge"], completed: false },
+              { id: "3", title: "Advanced Topics", content: `Now we'll dive into advanced topics related to ${prompt}. This module builds upon your foundational knowledge and explores more complex applications.`, objectives: ["Master advanced concepts", "Apply complex principles", "Solve challenging problems"], completed: false },
+              { id: "4", title: "Practice & Assessment", content: `In this final module, you'll practice what you've learned and assess your understanding of ${prompt}. This includes practical exercises and self-assessment tools.`, objectives: ["Practice skills", "Assess understanding", "Apply knowledge"], completed: false }
+            ],
+            youtubeLinks: [],
+            wikipediaData: { summary: `A comprehensive course covering ${prompt}`, keyConcepts: ["Fundamentals", "Core Principles", "Advanced Applications"] }
+          };
+        }
+      }
+    } catch (callError) {
+      console.error('OpenRouter call failed, using local template:', callError);
       courseData = {
         title: `Course on ${prompt}`,
         modules: [
-          {
-            id: "1",
-            title: "Introduction",
-            content: `Welcome to your course on ${prompt}. This module will introduce you to the fundamental concepts and prepare you for the learning journey ahead.`,
-            objectives: ["Understand the basics", "Set learning goals", "Prepare for advanced topics"],
-          completed: false
-        },
-        {
-            id: "2", 
-            title: "Core Concepts",
-            content: `In this module, we'll explore the core concepts of ${prompt}. You'll learn the essential principles and foundational knowledge needed to master this topic.`,
-            objectives: ["Learn core principles", "Understand key concepts", "Apply basic knowledge"],
-          completed: false
-        },
-        {
-            id: "3",
-            title: "Advanced Topics", 
-            content: `Now we'll dive into advanced topics related to ${prompt}. This module builds upon your foundational knowledge and explores more complex applications.`,
-            objectives: ["Master advanced concepts", "Apply complex principles", "Solve challenging problems"],
-          completed: false
-        },
-        {
-            id: "4",
-            title: "Practice & Assessment",
-            content: `In this final module, you'll practice what you've learned and assess your understanding of ${prompt}. This includes practical exercises and self-assessment tools.`,
-            objectives: ["Practice skills", "Assess understanding", "Apply knowledge"],
-          completed: false
-          }
+          { id: "1", title: "Introduction", content: `Welcome to your course on ${prompt}. This module will introduce you to the fundamental concepts and prepare you for the learning journey ahead.`, objectives: ["Understand the basics", "Set learning goals", "Prepare for advanced topics"], completed: false },
+          { id: "2", title: "Core Concepts", content: `In this module, we'll explore the core concepts of ${prompt}. You'll learn the essential principles and foundational knowledge needed to master this topic.`, objectives: ["Learn core principles", "Understand key concepts", "Apply basic knowledge"], completed: false },
+          { id: "3", title: "Advanced Topics", content: `Now we'll dive into advanced topics related to ${prompt}. This module builds upon your foundational knowledge and explores more complex applications.`, objectives: ["Master advanced concepts", "Apply complex principles", "Solve challenging problems"], completed: false },
+          { id: "4", title: "Practice & Assessment", content: `In this final module, you'll practice what you've learned and assess your understanding of ${prompt}. This includes practical exercises and self-assessment tools.`, objectives: ["Practice skills", "Assess understanding", "Apply knowledge"], completed: false }
         ],
         youtubeLinks: [],
-        wikipediaData: {
-          summary: `A comprehensive course covering ${prompt}`,
-          keyConcepts: ["Fundamentals", "Core Principles", "Advanced Applications"]
-        }
+        wikipediaData: { summary: `A comprehensive course covering ${prompt}`, keyConcepts: ["Fundamentals", "Core Principles", "Advanced Applications"] }
       };
     }
 
